@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3 uid="uid://cvujl8qt4m1hb"]
+
+[ext_resource type="Script" uid="uid://c3bchdaat0xg2" path="res://enemies/PirateBrute.gd" id="1_206jy"]
+
+[node name="PirateBrute" type="Node2D"]
+script = ExtResource("1_206jy")
+
+[node name="BodyRect" type="ColorRect" parent="."]
+custom_minimum_size = Vector2(100, 100)
+offset_right = 40.0
+offset_bottom = 40.0
+color = Color(0.961484, 0.582465, 0.569383, 1)

@@ -1,0 +1,3 @@
+[gd_scene format=3 uid="uid://cj3xu55rnnsos"]
+
+[node name="DiscardPile" type="PanelContainer"]

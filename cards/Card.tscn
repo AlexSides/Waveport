@@ -1,0 +1,89 @@
+[gd_scene load_steps=4 format=3 uid="uid://b805xdoqummeg"]
+
+[ext_resource type="Script" uid="uid://wgqq7js4kxjk" path="res://cards/Card.gd" id="1_v80w6"]
+[ext_resource type="Texture2D" uid="uid://b741kuiyf62m3" path="res://assets/cards/Orange_Layout.png" id="2_yrj2n"]
+[ext_resource type="Texture2D" uid="uid://cwbqqrj4bawkh" path="res://assets/cards/Cannon_Shot.png" id="3_venjh"]
+
+[node name="CardButton" type="Button"]
+custom_minimum_size = Vector2(400, 600)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -50.0
+offset_top = -75.0
+offset_right = 50.0
+offset_bottom = 75.0
+grow_horizontal = 2
+grow_vertical = 2
+icon_alignment = 1
+vertical_icon_alignment = 2
+script = ExtResource("1_v80w6")
+
+[node name="CardFrame" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="ArtRect" type="TextureRect" parent="CardFrame"]
+custom_minimum_size = Vector2(400, 330)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 1.0
+offset_top = 18.0
+offset_right = 1.0
+offset_bottom = 434.0
+grow_horizontal = 2
+texture = ExtResource("3_venjh")
+
+[node name="FrameRect" type="TextureRect" parent="CardFrame"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_yrj2n")
+stretch_mode = 6
+
+[node name="NameLabel" type="Label" parent="CardFrame"]
+layout_mode = 1
+anchors_preset = 14
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = 41.0
+offset_top = 99.0
+offset_right = -23.0
+offset_bottom = 166.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 40
+text = "Cannon shot"
+horizontal_alignment = 1
+
+[node name="DescLabel" type="Label" parent="CardFrame"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = -137.0
+offset_right = -12.0
+offset_bottom = -17.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 24
+text = "Deal 3 Dmg to enemies"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3

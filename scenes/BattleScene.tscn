@@ -1,0 +1,284 @@
+[gd_scene load_steps=6 format=3 uid="uid://f0ylxmx8u5s3"]
+
+[ext_resource type="Script" uid="uid://o1556vowgy8r" path="res://scenes/BattleScene.gd" id="1_ltshs"]
+[ext_resource type="PackedScene" uid="uid://ciue2h6aklxj8" path="res://ship/PlayerShip.tscn" id="2_3mvhd"]
+[ext_resource type="Script" uid="uid://bbtptsg0e0rd2" path="res://scenes/ModuleSlot.gd" id="2_gkmpl"]
+[ext_resource type="PackedScene" uid="uid://ct6186f53f3cn" path="res://scenes/PlunderScreen.tscn" id="4_28s16"]
+
+[sub_resource type="Theme" id="Theme_gkmpl"]
+default_base_scale = 0.5
+default_font_size = 28
+
+[node name="BattleScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_ltshs")
+
+[node name="BattleWorld" type="Node2D" parent="."]
+
+[node name="EnemyContainer" type="Node2D" parent="BattleWorld"]
+
+[node name="ShipContainer" type="Node2D" parent="BattleWorld"]
+
+[node name="PlayerShip" parent="BattleWorld/ShipContainer" instance=ExtResource("2_3mvhd")]
+position = Vector2(500, 1600)
+
+[node name="BattleUI" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="CardHand" type="HBoxContainer" parent="BattleUI"]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -20.0
+offset_top = -88.0
+offset_right = -20.0
+offset_bottom = -88.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="DiscardPile" type="Control" parent="BattleUI"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -392.0
+offset_top = -488.0
+offset_right = -392.0
+offset_bottom = -488.0
+grow_horizontal = 0
+grow_vertical = 0
+scale = Vector2(2, 2)
+
+[node name="DiscardLabel" type="Label" parent="BattleUI/DiscardPile"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_font_sizes/font_size = 14
+text = "Discard Pile: 0"
+
+[node name="DeckPile" type="Control" parent="BattleUI"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 200.0
+offset_top = -488.0
+offset_right = 200.0
+offset_bottom = -488.0
+grow_vertical = 0
+scale = Vector2(2, 2)
+
+[node name="DeckLabel" type="Label" parent="BattleUI/DeckPile"]
+layout_mode = 0
+offset_right = 91.0
+offset_bottom = 23.0
+theme_override_font_sizes/font_size = 14
+text = "Draw Pile: 0"
+
+[node name="ModuleSlot" type="Control" parent="BattleUI"]
+layout_mode = 3
+anchors_preset = 0
+offset_left = 1500.0
+offset_top = 1000.0
+offset_right = 1500.0
+offset_bottom = 1000.0
+scale = Vector2(3, 3)
+pivot_offset = Vector2(0, -0.27)
+script = ExtResource("2_gkmpl")
+
+[node name="ColorRect" type="ColorRect" parent="BattleUI/ModuleSlot"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+color = Color(0.252028, 0.252028, 0.252028, 0.313726)
+
+[node name="ButtonsContainer" type="VBoxContainer" parent="BattleUI"]
+custom_minimum_size = Vector2(250, 250)
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -575.0
+offset_top = -178.0
+offset_right = -325.0
+offset_bottom = 72.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="FireButton" type="Button" parent="BattleUI/ButtonsContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "Fire!"
+
+[node name="UnloadButton" type="Button" parent="BattleUI/ButtonsContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "Unload"
+
+[node name="EnemyHPLabel" type="Label" parent="BattleUI"]
+custom_minimum_size = Vector2(200, 250)
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_font_sizes/font_size = 30
+text = "HP"
+horizontal_alignment = 1
+
+[node name="EnemyIntentLabel" type="Label" parent="BattleUI"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_font_sizes/font_size = 30
+text = "1x1"
+horizontal_alignment = 1
+
+[node name="EnemyNameLabel" type="Label" parent="BattleUI"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_font_sizes/font_size = 30
+text = "Enemy"
+horizontal_alignment = 1
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="PanelContainer" type="PanelContainer" parent="HUD"]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HUD/PanelContainer"]
+custom_minimum_size = Vector2(200, 100)
+layout_mode = 2
+
+[node name="ShipHPLabel" type="Label" parent="HUD/PanelContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+
+[node name="GoldLabel" type="Label" parent="HUD/PanelContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "Gold: 0"
+
+[node name="ModuleSlotsLabel" type="Label" parent="HUD/PanelContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "Modules: 0 / 0"
+
+[node name="BlockLabel" type="Label" parent="HUD/PanelContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+
+[node name="QueueLabel" type="Label" parent="HUD/PanelContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+
+[node name="DebugCanvas" type="CanvasLayer" parent="."]
+
+[node name="DebugLogPanel" type="Panel" parent="DebugCanvas"]
+clip_contents = true
+custom_minimum_size = Vector2(600, 300)
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_top = -75.0
+offset_right = 400.0
+offset_bottom = 75.0
+grow_vertical = 2
+theme = SubResource("Theme_gkmpl")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="DebugCanvas/DebugLogPanel"]
+clip_contents = false
+custom_minimum_size = Vector2(900, 300)
+layout_mode = 0
+offset_left = 10.0
+offset_right = 960.0
+offset_bottom = 300.0
+horizontal_scroll_mode = 0
+
+[node name="LogVBox" type="VBoxContainer" parent="DebugCanvas/DebugLogPanel/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 2
+size_flags_vertical = 3
+
+[node name="PlunderScreen" parent="." instance=ExtResource("4_28s16")]
+layout_mode = 1
+offset_left = 903.0
+offset_top = -132.0
+offset_right = 903.0
+offset_bottom = -132.0
+
+[node name="TutorialOverlay" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dim" type="ColorRect" parent="TutorialOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.27451)
+
+[node name="PanelContainer" type="PanelContainer" parent="TutorialOverlay"]
+custom_minimum_size = Vector2(1200, 700)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -187.0
+offset_top = -186.0
+offset_right = 209.0
+offset_bottom = 216.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="TutorialOverlay/PanelContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="TutorialOverlay/PanelContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "How to Play"
+horizontal_alignment = 1
+
+[node name="BodyLabel" type="Label" parent="TutorialOverlay/PanelContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 400)
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "Play cards from your hand. Attack cards fill your cannon slots. Click Fire to resolve queued attacks."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ContinueButton" type="Button" parent="TutorialOverlay/PanelContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+text = "Continue"
+
+[connection signal="pressed" from="BattleUI/ButtonsContainer/FireButton" to="." method="_on_fire_button_pressed"]
+[connection signal="pressed" from="BattleUI/ButtonsContainer/UnloadButton" to="." method="_on_unload_button_pressed"]

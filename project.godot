@@ -1,0 +1,28 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="Waveport"
+run/main_scene="uid://dp17sjtkh653l"
+config/features=PackedStringArray("4.4", "Forward Plus")
+config/icon="res://icon.svg"
+
+[autoload]
+
+DeckManager="*res://globals/DeckManager.gd"
+GameManager="*res://globals/GameManager.gd"
+TurnManager="*res://globals/TurnManager.gd"
+UIManager="*res://globals/UIManager.gd"
+PlayerData="*res://globals/PlayerData.gd"
+ModuleList="*res://data/ModuleList.gd"
+SaveManager="*res://globals/SaveManager.gd"
+CardManager="*res://globals/CardManager.gd"
+RunData="*res://globals/RunData.gd"
