@@ -13,6 +13,22 @@ var CARD_LIBRARY = {
 		"description": "Deal X damage."
 	},
 
+
+	"loaded_shot": {
+		"id": "loaded_shot",
+		"name": "Loaded Shot",
+		"type": "Attack",
+		"attack": 3,
+		"value": 3,
+		"category": "Queue",
+		"is_cannon": true,
+		"bonus_if_last_in_queue": 2,
+		"frame": "res://assets/cards/Orange_Layout.png",
+		"art": "res://assets/cards/Cannon_Shot.png",
+		"hide_text": false,
+		"description": "Deal 3 damage. If this is the last card in your queue, deal 2 more."
+	},
+
 	"brace": {
 		"id": "brace",
 		"name": "Brace",
@@ -24,6 +40,21 @@ var CARD_LIBRARY = {
 		"art": "res://assets/cards/Brace.png",
 		"hide_text": false,
 		"description": "Gain X Block."
+	},
+
+
+	"crate": {
+		"id": "crate",
+		"name": "Crate",
+		"type": "Skill",
+		"value": 0,
+		"category": "Queue",
+		"playable": false,
+		"unplayable_text": "Cannot be played.",
+		"frame": "res://assets/cards/Orange_Layout.png",
+		"art": "res://assets/cards/Crate.png",
+		"hide_text": false,
+		"description": "Cannot be played."
 	},
 
 	"repair": {

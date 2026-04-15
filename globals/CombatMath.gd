@@ -127,6 +127,9 @@ static func simulate_queue(turn_manager, action_queue: Array, enemy = null) -> D
 			for fire_index in range(repeat_count):
 				var damage: int = get_card_base_attack_value(turn_manager, card_data, enemy)
 
+				if i == action_queue.size() - 1 and fire_index == 0:
+					damage += int(card_data.get("bonus_if_last_in_queue", 0))
+
 				if card_data.get("is_cannon", false):
 					damage += preview_cannon_bonus
 

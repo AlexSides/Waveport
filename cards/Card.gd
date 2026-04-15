@@ -108,6 +108,14 @@ func stop_drag() -> void:
 			hover_slot = null
 			return
 
+		if not _is_card_playable():
+			_show_unplayable_message()
+			return_to_hand()
+			if hover_slot and hover_slot.has_method("unhighlight"):
+				hover_slot.unhighlight()
+			hover_slot = null
+			return
+
 		if hover_slot.has_method("fill"):
 			hover_slot.fill(card_name)
 		if not TurnManager.queue_card(self):
@@ -128,6 +136,11 @@ func stop_drag() -> void:
 
 func play_card() -> void:
 	if not _can_play_for_tutorial():
+		return_to_hand()
+		return
+
+	if not _is_card_playable():
+		_show_unplayable_message()
 		return_to_hand()
 		return
 
@@ -155,3 +168,20 @@ func _can_play_for_tutorial() -> bool:
 	if scene and scene.has_method("can_play_card_for_tutorial"):
 		return scene.can_play_card_for_tutorial(self)
 	return true
+
+func _is_card_playable() -> bool:
+	if not DeckManager.card_defs.has(get_meta("card_id", "")):
+		return true
+
+	var def: Dictionary = DeckManager.card_defs.get(get_meta("card_id", ""), {})
+	return bool(def.get("playable", true))
+
+func _show_unplayable_message() -> void:
+	var def: Dictionary = DeckManager.card_defs.get(get_meta("card_id", ""), {})
+	var msg: String = String(def.get("unplayable_text", "Cannot be played."))
+	var scene = get_tree().current_scene
+
+	if scene and scene.has_method("log_message"):
+		scene.log_message(msg)
+	else:
+		UIManager.show_warning(msg)

@@ -7,36 +7,80 @@ const TurnEffects = preload("res://globals/TurnEffects.gd")
 const ROTATE_STEP_DELAY := 0.45
 
 const TUT_WELCOME := 0
-const TUT_DRAW_HAND := 1
-const TUT_QUEUE_INFO := 2
-const TUT_FIRST_FISH_PROMPT := 3
-const TUT_FIRST_COMBAT := 4
-const TUT_FIRST_FIRE_PROMPT := 5
-const TUT_FIRST_FIRE_ACTION := 6
-const TUT_SECOND_FISH_PROMPT := 7
-const TUT_SECOND_WRONG_ORDER := 8
-const TUT_SECOND_WRONG_ORDER_PROMPT := 9
-const TUT_SECOND_UNLOAD := 10
-const TUT_SECOND_RELOAD_CORRECT := 11
-const TUT_SECOND_FIRE_PROMPT := 12
-const TUT_SECOND_FIRE_ACTION := 13
-const TUT_THIRD_FISH_PROMPT := 14
-const TUT_THIRD_COMBAT := 15
-const TUT_DONE := 16
+const TUT_DRILL_1_PROMPT := 1
+const TUT_DRILL_1_PLAY := 2
+const TUT_DRILL_1_FIRE := 3
+const TUT_DRILL_2_PROMPT := 4
+const TUT_DRILL_2_PLAY := 5
+const TUT_DRILL_2_FIRE := 6
+const TUT_DRILL_3_PROMPT := 7
+const TUT_DRILL_3_WRONG_ORDER := 8
+const TUT_DRILL_3_WRONG_ORDER_DONE := 9
+const TUT_DRILL_3_UNLOAD := 10
+const TUT_DRILL_3_CORRECT_ORDER := 11
+const TUT_DRILL_3_FIRE := 12
+const TUT_DRILL_4_PROMPT := 13
+const TUT_DRILL_4_BRACE := 14
+const TUT_DRILL_4_SURVIVED := 15
+const TUT_DRILL_4_FINISH := 16
+const TUT_DRILL_5_PROMPT := 17
+const TUT_DRILL_5_PLAY := 18
+const TUT_DRILL_5_FIRE := 19
+const TUT_PLUNDER_PROMPT := 20
+const TUT_DONE := 21
 
-const TUTORIAL_CHAIN_ENCOUNTER := {
-	"wave_name": "Tutorial Chain",
+const TUTORIAL_DRILL_1_ENCOUNTER := {
+	"wave_name": "Tutorial Drill 1",
 	"enemies": {
-		"left": "piranha_swarm",
+		"center": "piranha_swarm"
+	},
+	"health_overrides": {
+		"center": 6
+	}
+}
+
+const TUTORIAL_DRILL_2_ENCOUNTER := {
+	"wave_name": "Tutorial Drill 2",
+	"enemies": {
+		"center": "piranha_swarm"
+	},
+	"health_overrides": {
+		"center": 6
+	}
+}
+
+const TUTORIAL_DRILL_3_ENCOUNTER := {
+	"wave_name": "Tutorial Drill 3",
+	"enemies": {
+		"center": "piranha_swarm"
+	},
+	"health_overrides": {
+		"center": 8
+	}
+}
+
+const TUTORIAL_DRILL_4_ENCOUNTER := {
+	"wave_name": "Tutorial Drill 4",
+	"enemies": {
+		"center": "piranha_swarm"
+	},
+	"health_overrides": {
+		"center": 6
+	}
+}
+
+const TUTORIAL_DRILL_5_ENCOUNTER := {
+	"wave_name": "Tutorial Drill 5",
+	"enemies": {
 		"center": "piranha_swarm",
 		"right": "piranha_swarm"
 	},
 	"health_overrides": {
-		"center": 6,
-		"right": 5,
-		"left": 11
+		"center": 3,
+		"right": 3
 	}
 }
+
 
 @onready var card_hand = $BattleUI/CardHand
 @onready var discard_label = $BattleUI/DiscardPile/DiscardLabel
@@ -79,8 +123,8 @@ var waiting_for_tutorial_start: bool = false
 var tutorial_active: bool = true
 var tutorial_step: int = TUT_WELCOME
 var tutorial_pause_after_fire: bool = false
-var skip_draw_after_fire_once: bool = false
-var tutorial_third_tip_shown: bool = false
+var tutorial_waiting_for_enemy_turn_result: bool = false
+var tutorial_plunder_demo_active: bool = false
 
 func _ready() -> void:
 	print("Captain is: ", RunData.selected_captain)
@@ -290,47 +334,51 @@ func _on_fire_button_pressed() -> void:
 			return
 
 		match tutorial_step:
-			TUT_FIRST_COMBAT:
+			TUT_DRILL_1_PLAY:
 				log_message("Load both Cannon Shots first.")
 				return
-			TUT_FIRST_FIRE_PROMPT:
-				log_message("Click Continue first.")
-				return
-			TUT_FIRST_FIRE_ACTION:
+			TUT_DRILL_1_FIRE:
 				if _get_queue_ids() != ["cannon_shot", "cannon_shot"]:
 					log_message("Load both Cannon Shots first.")
 					return
-			TUT_SECOND_FISH_PROMPT:
-				log_message("Click Continue first.")
+			TUT_DRILL_2_PLAY:
+				log_message("Load two Cannon Shots first.")
 				return
-			TUT_SECOND_WRONG_ORDER:
-				log_message("Load Cannon Shot first, then Chain Shot.")
-				return
-			TUT_SECOND_WRONG_ORDER_PROMPT:
-				log_message("Click Continue first.")
-				return
-			TUT_SECOND_UNLOAD:
-				log_message("Unload first.")
-				return
-			TUT_SECOND_RELOAD_CORRECT:
-				log_message("Load Chain Shot first, then Cannon Shot.")
-				return
-			TUT_SECOND_FIRE_PROMPT:
-				log_message("Click Continue first.")
-				return
-			TUT_SECOND_FIRE_ACTION:
-				if _get_queue_ids() != ["chain_shot", "cannon_shot"]:
-					log_message("Load Chain Shot first, then Cannon Shot.")
+			TUT_DRILL_2_FIRE:
+				if _get_queue_ids() != ["cannon_shot", "cannon_shot"]:
+					log_message("You can only load as many cards as you have cannons.")
 					return
-			TUT_THIRD_FISH_PROMPT:
-				log_message("Click Continue first.")
+			TUT_DRILL_3_WRONG_ORDER, TUT_DRILL_3_UNLOAD, TUT_DRILL_3_CORRECT_ORDER:
+				log_message("Finish the order lesson first.")
 				return
-
-	if tutorial_active and (
-		tutorial_step == TUT_FIRST_FIRE_ACTION
-		or tutorial_step == TUT_SECOND_FIRE_ACTION
-	):
-		skip_draw_after_fire_once = true
+			TUT_DRILL_3_FIRE:
+				if _get_queue_ids() != ["cannon_shot", "loaded_shot"]:
+					log_message("Load Cannon Shot first, then Loaded Shot.")
+					return
+			TUT_DRILL_4_BRACE:
+				if _count_card_id_in_queue("brace") > 0:
+					log_message("Brace is an Instant card. Play it from your hand.")
+				else:
+					log_message("Play Brace first.")
+				return
+			TUT_DRILL_4_SURVIVED:
+				if TurnManager.get_queue_size() > 0:
+					log_message("Fire with an empty queue to let the fish attack.")
+					return
+			TUT_DRILL_4_FINISH:
+				if _get_queue_ids() != ["cannon_shot", "cannon_shot"]:
+					log_message("Load both Cannon Shots first.")
+					return
+			TUT_DRILL_5_PLAY:
+				log_message("Load both Cannon Shots first.")
+				return
+			TUT_DRILL_5_FIRE:
+				if _get_queue_ids() != ["cannon_shot", "cannon_shot"]:
+					log_message("Load both Cannon Shots first.")
+					return
+			_:
+				log_message("Not right now.")
+				return
 
 	_clean_enemy_refs()
 	_ensure_center_enemy()
@@ -378,16 +426,16 @@ func _on_unload_button_pressed() -> void:
 			log_message("Click Continue on the tutorial first.")
 			return
 
-		if tutorial_step != TUT_SECOND_UNLOAD:
+		if tutorial_step != TUT_DRILL_3_UNLOAD:
 			log_message("Not right now.")
 			return
 
 	TurnManager.unload_queue()
 	update_hud()
 
-	if tutorial_active and tutorial_step == TUT_SECOND_UNLOAD:
-		tutorial_step = TUT_SECOND_RELOAD_CORRECT
-		log_message("Now load Chain Shot first, then Cannon Shot.")
+	if tutorial_active and tutorial_step == TUT_DRILL_3_UNLOAD:
+		tutorial_step = TUT_DRILL_3_CORRECT_ORDER
+		log_message("Now load Cannon Shot first, then Loaded Shot.")
 
 func enemy_turn() -> void:
 	_clean_enemy_refs()
@@ -423,13 +471,17 @@ func enemy_turn() -> void:
 	if player_ship:
 		player_ship.clear_block()
 
-	if tutorial_active and tutorial_step == TUT_THIRD_COMBAT and not tutorial_third_tip_shown:
-		tutorial_third_tip_shown = true
-		_prepare_third_fish_intent(12)
+	if tutorial_active and tutorial_waiting_for_enemy_turn_result and tutorial_step == TUT_DRILL_4_SURVIVED:
+		tutorial_waiting_for_enemy_turn_result = false
+		TurnManager.unload_queue()
+		_force_tutorial_hand(["cannon_shot", "cannon_shot", "crate", "crate", "crate"])
+		tutorial_step = TUT_DRILL_4_FINISH
 		_show_tutorial(
-			"Finish It",
-			"If you can kill the fish before it attacks, you can avoid the damage."
+			"Good",
+			"Brace works right away.\n\nNow load both Cannon Shots and sink the fish."
 		)
+		update_hud()
+		return
 
 	start_player_turn()
 	update_hud()
@@ -455,28 +507,13 @@ func _on_enemy_defeated(defeated_enemy: Node) -> void:
 	if current_enemy:
 		current_enemy_id = String(current_enemy.enemy_id)
 
-	if tutorial_active:
-		if tutorial_step == TUT_FIRST_FIRE_ACTION:
-			tutorial_step = TUT_SECOND_FISH_PROMPT
-			tutorial_pause_after_fire = true
-			_show_tutorial(
-				"Order Matters",
-				"You still have two cards left.\n\nTry loading Cannon Shot first, then Chain Shot."
-			)
-			update_hud()
-			return
-
-		if tutorial_step == TUT_SECOND_FIRE_ACTION:
-			_setup_third_fish_tutorial_draw()
-			_prepare_third_fish_intent(6)
-			tutorial_step = TUT_THIRD_FISH_PROMPT
-			tutorial_pause_after_fire = true
-			_show_tutorial(
-				"Out of Cards",
-				"Nice.\n\nWe're out of cards, so let's draw back up to 4.\n\nThis fish attacks for 6.\n\nBrace is an Instant card, so it works right away."
-			)
-			update_hud()
-			return
+	if tutorial_active and not _has_any_living_enemies():
+		if resolving_player_fire:
+			pending_enemy_defeat_flow = true
+		else:
+			_finish_enemy_defeat_flow()
+		update_hud()
+		return
 
 	if _has_any_living_enemies():
 		update_hud()
@@ -595,9 +632,58 @@ func _clean_enemy_refs() -> void:
 func _finish_enemy_defeat_flow() -> void:
 	pending_enemy_defeat_flow = false
 
-	if tutorial_active and tutorial_step == TUT_THIRD_COMBAT:
-		tutorial_active = false
-		tutorial_step = TUT_DONE
+	if tutorial_active:
+		match tutorial_step:
+			TUT_DRILL_1_FIRE:
+				_prepare_empty_tutorial_screen()
+				_force_tutorial_hand(["cannon_shot", "cannon_shot", "cannon_shot", "crate", "crate"])
+				tutorial_step = TUT_DRILL_2_PROMPT
+				_show_tutorial(
+					"Drill 2",
+					"You have 3 queue cards in hand, but only 2 cannons.\n\nLoad two Cannon Shots and sink the fish."
+				)
+				update_hud()
+				return
+			TUT_DRILL_2_FIRE:
+				_prepare_empty_tutorial_screen()
+				_force_tutorial_hand(["cannon_shot", "loaded_shot", "crate", "crate", "crate"])
+				tutorial_step = TUT_DRILL_3_PROMPT
+				_show_tutorial(
+					"Drill 3",
+					"Order matters.\n\nLoaded Shot deals 3 damage, but if it is last in your queue, it deals 2 more."
+				)
+				update_hud()
+				return
+			TUT_DRILL_3_FIRE:
+				_prepare_empty_tutorial_screen()
+				_force_tutorial_hand(["brace", "brace", "crate", "crate", "crate"])
+				tutorial_step = TUT_DRILL_4_PROMPT
+				_show_tutorial(
+					"Drill 4",
+					"This fish attacks for 6.\n\nPlay Brace before it hits."
+				)
+				update_hud()
+				return
+			TUT_DRILL_4_FINISH:
+				_prepare_empty_tutorial_screen()
+				_force_tutorial_hand(["cannon_shot", "cannon_shot", "crate", "crate", "crate"])
+				tutorial_step = TUT_DRILL_5_PROMPT
+				_show_tutorial(
+					"Drill 5",
+					"When the center enemy sinks, the formation shifts.\n\nLoad both Cannon Shots and watch the line collapse."
+				)
+				update_hud()
+				return
+			TUT_DRILL_5_FIRE:
+				_prepare_empty_tutorial_screen()
+				tutorial_step = TUT_PLUNDER_PROMPT
+				tutorial_plunder_demo_active = true
+				_show_tutorial(
+					"Plunder",
+					"After battles, you choose one reward set.\n\nLet's look at plunder once before the real fight."
+				)
+				update_hud()
+				return
 
 	if encounter_queue.is_empty():
 		end_battle(true)
@@ -609,6 +695,17 @@ func _on_plunder_finished() -> void:
 	show_battle_ui()
 	TurnManager.reset_for_battle()
 	DeckManager.reset()
+
+	if tutorial_plunder_demo_active:
+		tutorial_plunder_demo_active = false
+		tutorial_active = false
+		tutorial_step = TUT_DONE
+		spawn_enemy()
+		start_player_turn()
+		update_hud()
+		_save_pre_battle_state()
+		return
+
 	spawn_enemy()
 	start_player_turn()
 	update_hud()
@@ -686,7 +783,7 @@ func update_enemy_intent_label() -> void:
 			continue
 
 		if enemy and is_instance_valid(enemy):
-			if tutorial_active and tutorial_step < TUT_THIRD_FISH_PROMPT:
+			if tutorial_active and tutorial_step < TUT_DRILL_4_PROMPT:
 				label.text = ""
 				label.hide()
 				continue
@@ -781,9 +878,10 @@ func _setup_new_battle_sequence() -> void:
 	plunder_screen.plunder_index = 0
 	waiting_for_tutorial_start = true
 	_store_current_hand_back_into_deck()
+	_prepare_empty_tutorial_screen()
 	_show_tutorial(
 		"Welcome",
-		"Welcome aboard.\n\nLet's learn the basics before we set sail."
+		"Welcome aboard.\n\nWe'll use a few short drills before the real fight."
 	)
 
 func _setup_restored_battle_sequence(save_state: Dictionary) -> void:
@@ -818,59 +916,47 @@ func _save_pre_battle_state() -> void:
 func _on_tutorial_continue_pressed() -> void:
 	match tutorial_step:
 		TUT_WELCOME:
-			tutorial_step = TUT_DRAW_HAND
-			_show_tutorial(
-				"First Step",
-				"First, let's draw a hand.\n\nYour hand size matches your crew size."
-			)
-
-		TUT_DRAW_HAND:
-			_force_tutorial_hand(["cannon_shot", "cannon_shot", "cannon_shot", "chain_shot"])
-			tutorial_step = TUT_QUEUE_INFO
-			_show_tutorial(
-				"Cards",
-				"Queue cards load into your cannons.\n\nWe'll keep this simple for now."
-			)
-
-		TUT_QUEUE_INFO:
-			spawn_enemy(TUTORIAL_CHAIN_ENCOUNTER)
-			tutorial_step = TUT_FIRST_FISH_PROMPT
-			_show_tutorial(
-				"Enemy Ahead",
-				"Load two Cannon Shots and sink the first fish."
-			)
-
-		TUT_FIRST_FISH_PROMPT:
+			_force_tutorial_hand(["cannon_shot", "cannon_shot", "crate", "crate", "crate"])
+			spawn_enemy(TUTORIAL_DRILL_1_ENCOUNTER)
 			tutorial_overlay.hide()
 			waiting_for_tutorial_start = false
-			tutorial_step = TUT_FIRST_COMBAT
+			tutorial_step = TUT_DRILL_1_PLAY
 			log_message("Load both Cannon Shots.")
 
-		TUT_FIRST_FIRE_PROMPT:
+		TUT_DRILL_2_PROMPT:
+			spawn_enemy(TUTORIAL_DRILL_2_ENCOUNTER)
 			tutorial_overlay.hide()
-			tutorial_step = TUT_FIRST_FIRE_ACTION
-			log_message("Now click Fire.")
+			tutorial_step = TUT_DRILL_2_PLAY
+			log_message("Load two Cannon Shots.")
 
-		TUT_SECOND_FISH_PROMPT:
+		TUT_DRILL_3_PROMPT:
+			spawn_enemy(TUTORIAL_DRILL_3_ENCOUNTER)
 			tutorial_overlay.hide()
-			tutorial_step = TUT_SECOND_WRONG_ORDER
-			log_message("Load Cannon Shot first, then Chain Shot.")
+			tutorial_step = TUT_DRILL_3_WRONG_ORDER
+			log_message("Try Loaded Shot first, then Cannon Shot.")
 
-		TUT_SECOND_WRONG_ORDER_PROMPT:
+		TUT_DRILL_3_WRONG_ORDER_DONE:
 			tutorial_overlay.hide()
-			tutorial_step = TUT_SECOND_UNLOAD
+			tutorial_step = TUT_DRILL_3_UNLOAD
 			log_message("Now click Unload.")
 
-		TUT_SECOND_FIRE_PROMPT:
+		TUT_DRILL_4_PROMPT:
+			spawn_enemy(TUTORIAL_DRILL_4_ENCOUNTER)
+			_prepare_current_enemy_intent(6)
 			tutorial_overlay.hide()
-			tutorial_step = TUT_SECOND_FIRE_ACTION
-			log_message("Now click Fire.")
+			tutorial_step = TUT_DRILL_4_BRACE
+			log_message("Play Brace.")
 
-		TUT_THIRD_FISH_PROMPT:
-			DeckManager.draw_cards(4 - DeckManager.hand.size())
+		TUT_DRILL_5_PROMPT:
+			spawn_enemy(TUTORIAL_DRILL_5_ENCOUNTER)
 			tutorial_overlay.hide()
-			tutorial_step = TUT_THIRD_COMBAT
-			log_message("The fish attacks for 6. Use Brace to survive this turn.")
+			tutorial_step = TUT_DRILL_5_PLAY
+			log_message("Load both Cannon Shots.")
+
+		TUT_PLUNDER_PROMPT:
+			tutorial_overlay.hide()
+			hide_battle_ui()
+			plunder_screen.show_plunder()
 
 		_:
 			tutorial_overlay.hide()
@@ -888,37 +974,54 @@ func can_play_card_for_tutorial(card: Node) -> bool:
 	var card_id: String = String(card.get_meta("card_id", ""))
 
 	match tutorial_step:
-		TUT_FIRST_COMBAT:
+		TUT_DRILL_1_PLAY:
 			if card_id != "cannon_shot":
 				log_message("Only Cannon Shot for this step.")
 				return false
 			return true
 
-		TUT_FIRST_FIRE_ACTION:
-			log_message("Click Fire.")
-			return false
+		TUT_DRILL_2_PLAY:
+			if card_id != "cannon_shot":
+				log_message("Only Cannon Shot for this step.")
+				return false
+			return true
 
-		TUT_SECOND_WRONG_ORDER:
-			if _queue_ids_match_prefix(["cannon_shot", "chain_shot"], card_id):
+		TUT_DRILL_3_WRONG_ORDER:
+			if _queue_ids_match_prefix(["loaded_shot", "cannon_shot"], card_id):
 				return true
-			log_message("Load Cannon Shot first, then Chain Shot.")
+			log_message("Try Loaded Shot first, then Cannon Shot.")
 			return false
 
-		TUT_SECOND_UNLOAD:
-			log_message("Unload the cannons first.")
+		TUT_DRILL_3_UNLOAD:
+			log_message("Unload the queue first.")
 			return false
 
-		TUT_SECOND_RELOAD_CORRECT:
-			if _queue_ids_match_prefix(["chain_shot", "cannon_shot"], card_id):
+		TUT_DRILL_3_CORRECT_ORDER:
+			if _queue_ids_match_prefix(["cannon_shot", "loaded_shot"], card_id):
 				return true
-			log_message("Now reverse it: Chain Shot first, then Cannon Shot.")
+			log_message("Now load Cannon Shot first, then Loaded Shot.")
 			return false
 
-		TUT_SECOND_FIRE_ACTION:
-			log_message("Click Fire.")
+		TUT_DRILL_4_BRACE:
+			if card_id != "brace":
+				log_message("Play Brace first.")
+				return false
+			return true
+
+		TUT_DRILL_4_SURVIVED:
+			log_message("Fire with an empty queue to let the fish attack.")
 			return false
 
-		TUT_THIRD_COMBAT:
+		TUT_DRILL_4_FINISH:
+			if card_id != "cannon_shot":
+				log_message("Only Cannon Shot for this step.")
+				return false
+			return true
+
+		TUT_DRILL_5_PLAY:
+			if card_id != "cannon_shot":
+				log_message("Only Cannon Shot for this step.")
+				return false
 			return true
 
 		_:
@@ -931,27 +1034,57 @@ func _update_tutorial_progress() -> void:
 	if tutorial_overlay.visible:
 		return
 
-	if tutorial_step == TUT_FIRST_COMBAT and _get_queue_ids() == ["cannon_shot", "cannon_shot"]:
-		tutorial_step = TUT_FIRST_FIRE_PROMPT
+	if tutorial_step == TUT_DRILL_1_PLAY and _get_queue_ids() == ["cannon_shot", "cannon_shot"]:
+		tutorial_step = TUT_DRILL_1_FIRE
 		_show_tutorial(
 			"Ready",
 			"Your cannons are loaded.\n\nNow click Fire."
 		)
 		return
 
-	if tutorial_step == TUT_SECOND_WRONG_ORDER and _get_queue_ids() == ["cannon_shot", "chain_shot"]:
-		tutorial_step = TUT_SECOND_WRONG_ORDER_PROMPT
+	if tutorial_step == TUT_DRILL_2_PLAY and _get_queue_ids() == ["cannon_shot", "cannon_shot"]:
+		tutorial_step = TUT_DRILL_2_FIRE
 		_show_tutorial(
-			"Lower Damage",
-			"This order only shows 4 dmg.\n\nUnload the cannons, then put Chain Shot first to make it 5 dmg."
+			"Queue Limit",
+			"You only have 2 cannons, so only 2 queue cards can be loaded.\n\nNow click Fire."
 		)
 		return
 
-	if tutorial_step == TUT_SECOND_RELOAD_CORRECT and _get_queue_ids() == ["chain_shot", "cannon_shot"]:
-		tutorial_step = TUT_SECOND_FIRE_PROMPT
+	if tutorial_step == TUT_DRILL_3_WRONG_ORDER and _get_queue_ids() == ["loaded_shot", "cannon_shot"]:
+		tutorial_step = TUT_DRILL_3_WRONG_ORDER_DONE
+		_show_tutorial(
+			"Lower Damage",
+			"Loaded Shot only deals 3 here because it is not last.\n\nLet's try the better order."
+		)
+		return
+
+	if tutorial_step == TUT_DRILL_3_CORRECT_ORDER and _get_queue_ids() == ["cannon_shot", "loaded_shot"]:
+		tutorial_step = TUT_DRILL_3_FIRE
 		_show_tutorial(
 			"Better",
-			"Now it shows 5 dmg instead of 4 dmg.\n\nClick Fire."
+			"Now Loaded Shot is last, so it deals 5 damage.\n\nClick Fire."
+		)
+		return
+
+	if tutorial_step == TUT_DRILL_4_BRACE and _count_cards_in_hand("brace") == 0:
+		tutorial_step = TUT_DRILL_4_SURVIVED
+		tutorial_waiting_for_enemy_turn_result = true
+		_show_tutorial(
+			"Now Wait",
+			"Brace works immediately.\n\nClick Fire with an empty queue to let the fish attack."
+		)
+		return
+
+	if tutorial_step == TUT_DRILL_4_FINISH and _get_queue_ids() == ["cannon_shot", "cannon_shot"]:
+		tutorial_overlay.hide()
+		log_message("Your cannons are loaded. Now click Fire.")
+		return
+
+	if tutorial_step == TUT_DRILL_5_PLAY and _get_queue_ids() == ["cannon_shot", "cannon_shot"]:
+		tutorial_step = TUT_DRILL_5_FIRE
+		_show_tutorial(
+			"Watch The Line",
+			"When the center fish sinks, the next one slides forward.\n\nNow click Fire."
 		)
 		return
 
@@ -959,6 +1092,26 @@ func _show_tutorial(title_text: String, body_text: String) -> void:
 	tutorial_title.text = title_text
 	tutorial_body.text = body_text
 	tutorial_overlay.show()
+
+func _prepare_empty_tutorial_screen() -> void:
+	TurnManager.unload_queue()
+	_clear_current_encounter()
+	_clear_hand_only()
+	TurnManager.reset_for_battle()
+	update_hud()
+
+func _prepare_current_enemy_intent(damage: int) -> void:
+	var enemy = get_current_enemy()
+	if enemy == null or not is_instance_valid(enemy):
+		return
+
+	enemy.current_action = {
+		"key": "tutorial_attack_%d" % damage,
+		"type": "attack",
+		"damage": damage,
+		"hits": 1,
+		"intent_text": "%d ⚔" % damage
+	}
 
 func _store_current_hand_back_into_deck() -> void:
 	var hand_ids: Array[String] = []
@@ -989,43 +1142,8 @@ func _force_tutorial_hand(card_ids: Array[String]) -> void:
 		TurnEffects.add_card_to_hand(card_id)
 	UIManager.update_deck_ui(DeckManager.deck.size(), DeckManager.discard_pile.size())
 
-func _setup_third_fish_tutorial_draw() -> void:
-	_clear_hand_only()
-	DeckManager.deck.clear()
-	DeckManager.discard_pile.clear()
-
-	DeckManager.deck = [
-		"brace",
-		"brace"
-	]
-
-	DeckManager.discard_pile = [
-		"cannon_shot",
-		"cannon_shot",
-		"cannon_shot",
-		"chain_shot"
-	]
-
-	UIManager.update_deck_ui(DeckManager.deck.size(), DeckManager.discard_pile.size())
-
-func _prepare_third_fish_intent(damage: int) -> void:
-	var enemy = get_current_enemy()
-	if enemy == null or not is_instance_valid(enemy):
-		return
-
-	enemy.current_action = {
-		"key": "tutorial_attack_%d" % damage,
-		"type": "attack",
-		"damage": damage,
-		"hits": 1,
-		"intent_text": "%d ⚔" % damage
-	}
-
 func should_skip_draw_after_fire() -> bool:
-	if skip_draw_after_fire_once:
-		skip_draw_after_fire_once = false
-		return true
-	return false
+	return tutorial_active
 
 func _get_queue_ids() -> Array[String]:
 	var ids: Array[String] = []
