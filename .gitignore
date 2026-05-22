@@ -1,16 +1,22 @@
-# Godot 4+ specific ignores
+# Godot 4 editor/import cache
 .godot/
 .nomedia
 
-# Godot-specific ignores
+# Legacy Godot import folder
 .import/
+
+# Export credentials / local export data
 export.cfg
 export_credentials.cfg
 
-# Imported translations (automatically generated from CSV files)
+# Imported translations
 *.translation
 
-# Mono-specific ignores
+# Mono / C#
 .mono/
 data_*/
 mono_crash.*.json
+
+# OS-generated files
+.DS_Store
+Thumbs.db

@@ -52,7 +52,7 @@ var CARD_LIBRARY = {
 		"playable": false,
 		"unplayable_text": "Cannot be played.",
 		"frame": "res://assets/cards/Orange_Layout.png",
-		"art": "res://assets/cards/Crate.png",
+		"art": "res://assets/cards/crate.png",
 		"hide_text": false,
 		"description": "Cannot be played."
 	},
