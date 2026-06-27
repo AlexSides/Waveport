@@ -34,35 +34,35 @@ alignment = 1
 
 [node name="Title" type="Label" parent="Panel/CenterContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 64
+theme_override_font_sizes/font_size = 72
 text = "Drills"
 
 [node name="Drill1Button" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 32
 text = "Drill 1 - Fire"
 
 [node name="Drill2Button" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 32
 text = "Drill 2 - Queue Limit"
 
 [node name="Drill3Button" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 32
 text = "Drill 3 - Order Matters"
 
 [node name="Drill4Button" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 32
 text = "Drill 4 - Brace"
 
 [node name="Drill5Button" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 32
 text = "Drill 5 - Collapse"
 
 [node name="BackButton" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 32
 text = "Back"

@@ -1,12 +1,16 @@
-[gd_scene load_steps=2 format=3 uid="uid://bgpwcnr82jsfa"]
+[gd_scene load_steps=3 format=3 uid="uid://bgpwcnr82jsfa"]
 
 [ext_resource type="Script" uid="uid://c4oe1y3huug4t" path="res://enemies/PiranhaSwarm.gd" id="1_dsfmr"]
+[ext_resource type="Texture2D" path="res://assets/enemies/piranha_blue_a.png" id="2_2py58"]
 
 [node name="PiranhaSwarm" type="Node2D"]
 script = ExtResource("1_dsfmr")
 
-[node name="BodyRect" type="ColorRect" parent="."]
-custom_minimum_size = Vector2(100, 100)
-offset_right = 40.0
-offset_bottom = 40.0
-color = Color(0.766101, 0.703663, 0.467764, 1)
+[node name="BodyRect" type="TextureRect" parent="."]
+offset_left = -180.0
+offset_top = -150.0
+offset_right = 180.0
+offset_bottom = 150.0
+texture = ExtResource("2_2py58")
+expand_mode = 1
+stretch_mode = 5

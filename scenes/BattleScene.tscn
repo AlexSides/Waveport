@@ -1,9 +1,10 @@
-[gd_scene load_steps=9 format=3 uid="uid://f0ylxmx8u5s3"]
+[gd_scene load_steps=10 format=3 uid="uid://f0ylxmx8u5s3"]
 
 [ext_resource type="Script" uid="uid://o1556vowgy8r" path="res://scenes/BattleScene.gd" id="1_ltshs"]
 [ext_resource type="PackedScene" uid="uid://ciue2h6aklxj8" path="res://ship/PlayerShip.tscn" id="2_3mvhd"]
-[ext_resource type="Script" uid="uid://bbtptsg0e0rd2" path="res://scenes/ModuleSlot.gd" id="2_gkmpl"]
-[ext_resource type="PackedScene" uid="uid://mpc6cu06sbqf" path="res://scenes/PlunderScreen.tscn" id="4_28s16"]
+[ext_resource type="Script" uid="uid://dobn4ry5dw3wv" path="res://ui/CannonLoadSlots.gd" id="3_cannonloads"]
+[ext_resource type="PackedScene" uid="uid://ct6186f53f3cn" path="res://scenes/PlunderScreen.tscn" id="4_28s16"]
+[ext_resource type="Script" uid="uid://bobjyhbbllmr5" path="res://ui/CardHand.gd" id="4_cardhand"]
 [ext_resource type="PackedScene" uid="uid://bk53cn0ay226c" path="res://scenes/ShipPreview.tscn" id="5_shippreview"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_enemy_hp_bg"]
@@ -50,19 +51,20 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="CardHand" type="HBoxContainer" parent="BattleUI"]
+[node name="CardHand" type="Control" parent="BattleUI"]
 layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
+anchors_preset = 12
 anchor_top = 1.0
-anchor_right = 0.5
+anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -20.0
-offset_top = -88.0
-offset_right = -20.0
-offset_bottom = -88.0
+offset_left = 520.0
+offset_top = -760.0
+offset_right = -520.0
+offset_bottom = -42.0
 grow_horizontal = 2
 grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("4_cardhand")
 
 [node name="DiscardPile" type="Control" parent="BattleUI"]
 layout_mode = 1
@@ -105,22 +107,15 @@ offset_bottom = 23.0
 theme_override_font_sizes/font_size = 14
 text = "Draw Pile: 0"
 
-[node name="ModuleSlot" type="Control" parent="BattleUI"]
-layout_mode = 3
-anchors_preset = 0
-offset_left = 1500.0
-offset_top = 1000.0
-offset_right = 1500.0
-offset_bottom = 1000.0
-scale = Vector2(3, 3)
-pivot_offset = Vector2(0, -0.27)
-script = ExtResource("2_gkmpl")
-
-[node name="ColorRect" type="ColorRect" parent="BattleUI/ModuleSlot"]
-layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
-color = Color(0.252028, 0.252028, 0.252028, 0.313726)
+[node name="CannonLoadSlots" type="Control" parent="BattleUI"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_cannonloads")
 
 [node name="ButtonsContainer" type="VBoxContainer" parent="BattleUI"]
 custom_minimum_size = Vector2(250, 250)

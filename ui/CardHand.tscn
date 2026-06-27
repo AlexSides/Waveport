@@ -1,3 +1,8 @@
-[gd_scene format=3 uid="uid://31pmohtswmmc"]
+[gd_scene load_steps=2 format=3 uid="uid://31pmohtswmmc"]
 
-[node name="CardHand" type="HBoxContainer"]
+[ext_resource type="Script" path="res://ui/CardHand.gd" id="1_cardhand"]
+
+[node name="CardHand" type="Control"]
+custom_minimum_size = Vector2(2400, 720)
+mouse_filter = 2
+script = ExtResource("1_cardhand")

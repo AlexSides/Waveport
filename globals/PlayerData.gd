@@ -2,6 +2,7 @@ extends Node
 
 const ModuleList = preload("res://data/ModuleList.gd")
 const ShipList = preload("res://data/ShipList.gd")
+const CaptainList = preload("res://data/CaptainList.gd")
 
 signal gold_changed(new_gold: int)
 signal hull_changed(current_hull: int, max_hull: int)
@@ -113,18 +114,27 @@ func ensure_run_state() -> void:
 
 func apply_captain_starting_deck(captain_id: String) -> void:
 	selected_captain = captain_id
+	starter_deck = get_captain_starting_deck(captain_id)
+	current_ship_id = get_captain_starting_ship_id(captain_id)
+	_setup_default_ship_state()
+
+	reset_run()
+
+func get_captain_starting_deck(captain_id: String) -> Array[String]:
+	if CaptainList.has_captain(captain_id):
+		return CaptainList.get_starter_deck(captain_id)
 
 	match captain_id:
 		"captain_1":
-			starter_deck = CAPTAIN_1_STARTER_DECK.duplicate()
-			current_ship_id = DEFAULT_STARTER_SHIP_ID
-			_setup_default_ship_state()
+			return CAPTAIN_1_STARTER_DECK.duplicate()
 		_:
-			starter_deck = DEFAULT_STARTER_DECK.duplicate()
-			current_ship_id = DEFAULT_STARTER_SHIP_ID
-			_setup_default_ship_state()
+			return DEFAULT_STARTER_DECK.duplicate()
 
-	reset_run()
+func get_captain_starting_ship_id(captain_id: String) -> String:
+	if CaptainList.has_captain(captain_id):
+		return CaptainList.get_starting_ship_id(captain_id)
+
+	return DEFAULT_STARTER_SHIP_ID
 
 func _setup_default_ship_state() -> void:
 	current_ship_id = DEFAULT_STARTER_SHIP_ID if current_ship_id == "" else current_ship_id
@@ -386,6 +396,19 @@ func get_queue_limit() -> int:
 		total += int(module_data.get("queue_bonus", 0))
 
 	return max(total, 0)
+
+func get_installed_cannon_count() -> int:
+	var total: int = 0
+
+	for slot in ShipList.get_slots_of_type(current_ship_id, "cannon"):
+		var slot_id: String = String(slot.get("id", ""))
+		if slot_id == "":
+			continue
+
+		if String(installed_modules_by_slot.get(slot_id, "")) != "":
+			total += 1
+
+	return total
 
 func get_ship_name() -> String:
 	return ShipList.get_ship_name(current_ship_id)

@@ -1,78 +1,101 @@
 extends Control
 
+const EnemyList = preload("res://data/EnemyList.gd")
+
 const BATTLE_SCENE := "res://scenes/BattleScene.tscn"
 const MAIN_MENU_SCENE := "res://scenes/MainMenu.tscn"
 const DEFAULT_SANDBOX_CAPTAIN_ID := "captain_1"
+const PAGE_SIZE := 6
 
-@onready var crab_button: Button = $Panel/CenterContainer/VBoxContainer/CrabButton
-@onready var eel_button: Button = $Panel/CenterContainer/VBoxContainer/EelButton
-@onready var jellyfish_button: Button = $Panel/CenterContainer/VBoxContainer/JellyfishButton
-@onready var starfish_button: Button = $Panel/CenterContainer/VBoxContainer/StarfishButton
-@onready var piranha_button: Button = $Panel/CenterContainer/VBoxContainer/PiranhaButton
-@onready var shark_button: Button = $Panel/CenterContainer/VBoxContainer/SharkButton
-@onready var back_button: Button = $Panel/CenterContainer/VBoxContainer/BackButton
+@onready var enemy_list: VBoxContainer = $Panel/CenterContainer/MenuRoot/EnemyList
+@onready var previous_button: Button = $Panel/CenterContainer/MenuRoot/NavRow/PreviousButton
+@onready var page_label: Label = $Panel/CenterContainer/MenuRoot/NavRow/PageLabel
+@onready var next_button: Button = $Panel/CenterContainer/MenuRoot/NavRow/NextButton
+@onready var back_button: Button = $Panel/BackButton
+
+var sandbox_entries: Array[Dictionary] = []
+var enemy_buttons: Array[Button] = []
+var current_page: int = 0
 
 func _ready() -> void:
-	_disconnect_menu_signals()
+	sandbox_entries = EnemyList.get_sandbox_entries()
+	_create_enemy_buttons()
 	_connect_menu_signals()
+	_render_page()
 
-func _disconnect_menu_signals() -> void:
-	if crab_button.pressed.is_connected(_on_crab_pressed):
-		crab_button.pressed.disconnect(_on_crab_pressed)
-	if eel_button.pressed.is_connected(_on_eel_pressed):
-		eel_button.pressed.disconnect(_on_eel_pressed)
-	if jellyfish_button.pressed.is_connected(_on_jellyfish_pressed):
-		jellyfish_button.pressed.disconnect(_on_jellyfish_pressed)
-	if starfish_button.pressed.is_connected(_on_starfish_pressed):
-		starfish_button.pressed.disconnect(_on_starfish_pressed)
-	if piranha_button.pressed.is_connected(_on_piranha_pressed):
-		piranha_button.pressed.disconnect(_on_piranha_pressed)
-	if shark_button.pressed.is_connected(_on_shark_pressed):
-		shark_button.pressed.disconnect(_on_shark_pressed)
-	if back_button.pressed.is_connected(_on_back_pressed):
-		back_button.pressed.disconnect(_on_back_pressed)
+func _create_enemy_buttons() -> void:
+	for child in enemy_list.get_children():
+		child.queue_free()
+
+	enemy_buttons.clear()
+	for index in range(PAGE_SIZE):
+		var button := Button.new()
+		button.custom_minimum_size = Vector2(560.0, 56.0)
+		button.add_theme_font_size_override("font_size", 32)
+		button.pressed.connect(_on_enemy_button_pressed.bind(index))
+		enemy_list.add_child(button)
+		enemy_buttons.append(button)
 
 func _connect_menu_signals() -> void:
-	crab_button.pressed.connect(_on_crab_pressed)
-	eel_button.pressed.connect(_on_eel_pressed)
-	jellyfish_button.pressed.connect(_on_jellyfish_pressed)
-	starfish_button.pressed.connect(_on_starfish_pressed)
-	piranha_button.pressed.connect(_on_piranha_pressed)
-	shark_button.pressed.connect(_on_shark_pressed)
-	back_button.pressed.connect(_on_back_pressed)
+	if not previous_button.pressed.is_connected(_on_previous_pressed):
+		previous_button.pressed.connect(_on_previous_pressed)
+	if not next_button.pressed.is_connected(_on_next_pressed):
+		next_button.pressed.connect(_on_next_pressed)
+	if not back_button.pressed.is_connected(_on_back_pressed):
+		back_button.pressed.connect(_on_back_pressed)
 
-func _on_crab_pressed() -> void:
-	_start_sandbox_fight(_build_encounter("Shellback Crab", {
-		"center": "shellback_crab"
-	}))
+func _render_page() -> void:
+	var total_pages: int = _get_total_pages()
+	current_page = clampi(current_page, 0, max(total_pages - 1, 0))
 
-func _on_eel_pressed() -> void:
-	_start_sandbox_fight(_build_encounter("Reef Eel", {
-		"center": "eel"
-	}))
+	var first_index: int = current_page * PAGE_SIZE
+	for button_index in range(enemy_buttons.size()):
+		var entry_index: int = first_index + button_index
+		var button: Button = enemy_buttons[button_index]
 
-func _on_jellyfish_pressed() -> void:
-	_start_sandbox_fight(_build_encounter("Jellyfish Pair", {
-		"center": "jellyfish",
-		"right": "jellyfish"
-	}))
+		if entry_index < sandbox_entries.size():
+			var entry: Dictionary = sandbox_entries[entry_index]
+			button.text = String(entry.get("name", "Enemy"))
+			button.disabled = false
+			button.show()
+		elif sandbox_entries.is_empty() and button_index == 0:
+			button.text = "No enemies available"
+			button.disabled = true
+			button.show()
+		else:
+			button.hide()
 
-func _on_starfish_pressed() -> void:
-	_start_sandbox_fight(_build_encounter("Starfish", {
-		"center": "starfish"
-	}))
+	page_label.text = "%d / %d" % [min(current_page + 1, total_pages), total_pages]
+	previous_button.visible = total_pages > 1
+	next_button.visible = total_pages > 1
+	page_label.visible = total_pages > 1
+	previous_button.disabled = current_page <= 0
+	next_button.disabled = current_page >= total_pages - 1
 
-func _on_piranha_pressed() -> void:
-	_start_sandbox_fight(_build_encounter("Piranha Swarm", {
-		"left": "piranha_a",
-		"center": "piranha_b",
-		"right": "piranha_c"
-	}))
+func _get_total_pages() -> int:
+	return max(1, int(ceil(float(sandbox_entries.size()) / float(PAGE_SIZE))))
 
-func _on_shark_pressed() -> void:
-	_start_sandbox_fight(_build_encounter("Reef Shark", {
-		"center": "reef_shark"
-	}))
+func _on_enemy_button_pressed(button_index: int) -> void:
+	var entry_index: int = current_page * PAGE_SIZE + button_index
+	if entry_index < 0 or entry_index >= sandbox_entries.size():
+		return
+
+	var entry: Dictionary = sandbox_entries[entry_index]
+	var enemies: Dictionary = Dictionary(entry.get("enemies", {}))
+	if enemies.is_empty():
+		enemies = {
+			"center": String(entry.get("id", ""))
+		}
+
+	_start_sandbox_fight(_build_encounter(String(entry.get("name", "Sandbox Enemy")), enemies))
+
+func _on_previous_pressed() -> void:
+	current_page -= 1
+	_render_page()
+
+func _on_next_pressed() -> void:
+	current_page += 1
+	_render_page()
 
 func _on_back_pressed() -> void:
 	RunData.clear_sandbox()

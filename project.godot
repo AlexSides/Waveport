@@ -26,3 +26,12 @@ ModuleList="*res://data/ModuleList.gd"
 SaveManager="*res://globals/SaveManager.gd"
 CardManager="*res://globals/CardManager.gd"
 RunData="*res://globals/RunData.gd"
+
+[display]
+
+window/size/viewport_width=3840
+window/size/viewport_height=2160
+window/size/window_width_override=1536
+window/size/window_height_override=864
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"

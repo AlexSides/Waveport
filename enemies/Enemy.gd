@@ -31,6 +31,7 @@ var temp_bonus_damage: int = 0
 var current_action: Dictionary = {}
 var combat_slot: String = "center"
 var base_body_color: Color = Color(0.443137, 0.65098, 0.631373, 1)
+var base_body_modulate: Color = Color(1, 1, 1, 1)
 
 func _ready() -> void:
 	bleed = 0
@@ -60,10 +61,7 @@ func setup_from_enemy_id(new_enemy_id: String) -> void:
 	state_flags = Dictionary(data.get("initial_flags", {})).duplicate(true)
 	scripted_next_action_key = ""
 
-	var body_rect: ColorRect = get_node_or_null("BodyRect")
-	if body_rect:
-		body_rect.color = EnemyList.get_ui_color(enemy_id)
-		base_body_color = body_rect.color
+	_configure_body_visual(EnemyList.get_ui_color(enemy_id), EnemyList.get_texture_path(enemy_id))
 
 	intent_index = 0
 	turn_count = 1
@@ -259,12 +257,31 @@ func _refresh_battle_hud() -> void:
 	if scene and scene.has_method("update_hud"):
 		scene.update_hud()
 
+func _configure_body_visual(body_color: Color, texture_path: String) -> void:
+	var body := get_node_or_null("BodyRect") as CanvasItem
+	if body == null:
+		return
+
+	if body is ColorRect:
+		var color_rect := body as ColorRect
+		color_rect.color = body_color
+		base_body_color = color_rect.color
+	elif body is TextureRect and texture_path != "":
+		var texture := load(texture_path)
+		if texture is Texture2D:
+			(body as TextureRect).texture = texture
+
+	base_body_modulate = body.modulate
+
 func _refresh_visual_state() -> void:
 	var submerged: bool = bool(state_flags.get("submerged", false))
-	var body_rect: ColorRect = get_node_or_null("BodyRect")
+	var body := get_node_or_null("BodyRect") as CanvasItem
 
-	if body_rect:
-		body_rect.color = base_body_color if not submerged else base_body_color.darkened(0.3)
+	if body is ColorRect:
+		var color_rect := body as ColorRect
+		color_rect.color = base_body_color if not submerged else base_body_color.darkened(0.3)
+	elif body:
+		body.modulate = base_body_modulate
 
 	if submerged:
 		modulate = Color(0.78, 0.88, 1.0, 0.5)

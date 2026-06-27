@@ -7,6 +7,15 @@ const INTERMISSION_SCENE := "res://scenes/IntermissionScreen.tscn"
 const SANDBOX_MENU_SCENE := "res://scenes/SandboxMenu.tscn"
 const DEFAULT_SANDBOX_CAPTAIN_ID := "captain_1"
 
+const DESIGN_CANVAS_SIZE := Vector2(3840.0, 2160.0)
+const ENEMY_LEFT_POS := Vector2(420.0, 340.0)
+const ENEMY_CENTER_POS := Vector2(800.0, 400.0)
+const ENEMY_RIGHT_POS := Vector2(1180.0, 340.0)
+const ENEMY_CENTER_SCALE := Vector2.ONE
+const ENEMY_SIDE_SCALE := Vector2(0.7, 0.7)
+const PILE_LABEL_FONT_SIZE := 28
+const DECK_LABEL_SIZE := Vector2(240.0, 44.0)
+const DISCARD_LABEL_SIZE := Vector2(280.0, 44.0)
 const ROTATE_STEP_DELAY := 0.45
 
 const TUT_WELCOME := 0
@@ -88,6 +97,8 @@ const TUTORIAL_DRILL_5_ENCOUNTER := {
 @onready var card_hand = $BattleUI/CardHand
 @onready var discard_label = $BattleUI/DiscardPile/DiscardLabel
 @onready var deck_label = $BattleUI/DeckPile/DeckLabel
+@onready var battle_world: Node2D = $BattleWorld
+@onready var enemy_container: Node2D = $BattleWorld/EnemyContainer
 @onready var player_ship = $BattleWorld/ShipContainer/PlayerShip
 @onready var hp_label = $HUD/PanelContainer/VBoxContainer/ShipHPLabel
 @onready var block_label = $HUD/PanelContainer/VBoxContainer/BlockLabel
@@ -106,6 +117,7 @@ const TUTORIAL_DRILL_5_ENCOUNTER := {
 @onready var tutorial_body = $TutorialOverlay/PanelContainer/VBoxContainer/BodyLabel
 @onready var tutorial_button = $TutorialOverlay/PanelContainer/VBoxContainer/ContinueButton
 @onready var ship_preview: Control = $ShipPreview
+@onready var cannon_load_slots: Control = $BattleUI/CannonLoadSlots
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -158,11 +170,12 @@ var tutorial_waiting_for_enemy_turn_result: bool = false
 var tutorial_plunder_demo_active: bool = false
 
 func _ready() -> void:
-	print("Captain is: ", RunData.selected_captain)
 	player_ship.defeated.connect(_on_player_defeated)
 	plunder_screen.reward_taken.connect(_on_plunder_finished)
 	tutorial_button.pressed.connect(_on_tutorial_continue_pressed)
 	_set_sandbox_result_pending(false)
+	_normalize_pile_labels()
+	_layout_aspect_safe_regions()
 
 	_setup_enemy_slot_labels()
 
@@ -186,6 +199,8 @@ func _ready() -> void:
 	plunder_screen.hide()
 	tutorial_overlay.hide()
 	TurnManager.reset_for_battle()
+	if cannon_load_slots != null and cannon_load_slots.has_method("refresh_slots"):
+		cannon_load_slots.call("refresh_slots")
 
 	if restore_state.is_empty():
 		_setup_new_battle_sequence()
@@ -197,18 +212,22 @@ func _ready() -> void:
 	_save_pre_battle_state()
 	log_message("BattleScene ready!")
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		_layout_aspect_safe_regions()
+
 func _process(_delta: float) -> void:
 	update_enemy_name_label()
 
 func show_battle_ui() -> void:
 	$BattleUI.show()
-	$BattleWorld.show()
+	battle_world.show()
 	$DebugCanvas.show()
 	$HUD.show()
 
 func hide_battle_ui() -> void:
 	$BattleUI.hide()
-	$BattleWorld.hide()
+	battle_world.hide()
 	$DebugCanvas.hide()
 	$HUD.hide()
 
@@ -248,6 +267,7 @@ func update_hud() -> void:
 
 	var queue_texts: Array[String] = []
 	var preview_steps: Array = TurnManager.get_queue_preview(get_current_enemy())
+	TurnManager.refresh_cannon_slot_damage_previews(get_current_enemy())
 
 	for step in preview_steps:
 		var card_data: Dictionary = step["card"]
@@ -290,31 +310,11 @@ func spawn_enemy(encounter_override: Dictionary = {}) -> void:
 		if enemy_id == "":
 			continue
 
-		var scene_path: String = EnemyList.get_scene_path(enemy_id)
-		if scene_path.is_empty():
-			push_error("BattleScene: Missing scene path for enemy id %s" % enemy_id)
-			continue
-
-		var enemy_scene: PackedScene = load(scene_path)
-		if enemy_scene == null:
-			push_error("BattleScene: failed to load enemy scene %s" % scene_path)
-			continue
-
-		var enemy: Node = enemy_scene.instantiate()
-		if enemy.has_method("setup_from_enemy_id"):
-			enemy.setup_from_enemy_id(enemy_id)
-
-		$BattleWorld/EnemyContainer.add_child(enemy)
-		if enemy.has_method("set_combat_slot"):
-			enemy.set_combat_slot(slot, true)
-
+		var override_hp: int = -1
 		if health_overrides.has(slot):
-			var override_hp: int = int(health_overrides.get(slot, enemy.health))
-			enemy.max_health = override_hp
-			enemy.health = override_hp
+			override_hp = int(health_overrides.get(slot, -1))
 
-		enemy.defeated.connect(_on_enemy_defeated.bind(enemy), CONNECT_ONE_SHOT)
-		enemies_by_slot[slot] = enemy
+		_spawn_enemy_in_slot(enemy_id, slot, override_hp)
 
 	_clean_enemy_refs()
 	_ensure_center_enemy()
@@ -344,10 +344,6 @@ func _clear_current_encounter() -> void:
 func _layout_enemies() -> void:
 	_clean_enemy_refs()
 
-	var center_pos := Vector2(800, 400)
-	var left_pos := Vector2(600, 340)
-	var right_pos := Vector2(1000, 340)
-
 	for slot in ["left", "center", "right"]:
 		var enemy = enemies_by_slot[slot]
 		if enemy == null or not is_instance_valid(enemy):
@@ -355,14 +351,109 @@ func _layout_enemies() -> void:
 
 		match slot:
 			"left":
-				enemy.position = left_pos
-				enemy.scale = Vector2(0.8, 0.8)
+				enemy.position = ENEMY_LEFT_POS
+				enemy.scale = ENEMY_SIDE_SCALE
 			"center":
-				enemy.position = center_pos
-				enemy.scale = Vector2(1.0, 1.0)
+				enemy.position = ENEMY_CENTER_POS
+				enemy.scale = ENEMY_CENTER_SCALE
 			"right":
-				enemy.position = right_pos
-				enemy.scale = Vector2(0.8, 0.8)
+				enemy.position = ENEMY_RIGHT_POS
+				enemy.scale = ENEMY_SIDE_SCALE
+
+func _layout_aspect_safe_regions() -> void:
+	var world := battle_world
+	if world == null:
+		world = get_node_or_null("BattleWorld") as Node2D
+	if world == null:
+		return
+
+	var viewport_size := get_viewport_rect().size
+	var extra_space := viewport_size - DESIGN_CANVAS_SIZE
+	world.position = Vector2(max(extra_space.x * 0.5, 0.0), max(extra_space.y * 0.5, 0.0))
+
+	update_enemy_hp_label()
+	update_enemy_intent_label()
+
+func _normalize_pile_labels() -> void:
+	_configure_crisp_pile_label(deck_label, DECK_LABEL_SIZE)
+	_configure_crisp_pile_label(discard_label, DISCARD_LABEL_SIZE)
+
+func _configure_crisp_pile_label(label: Label, label_size: Vector2) -> void:
+	if label == null:
+		return
+
+	var parent_control := label.get_parent() as Control
+	if parent_control:
+		parent_control.scale = Vector2.ONE
+
+	label.add_theme_font_size_override("font_size", PILE_LABEL_FONT_SIZE)
+	label.custom_minimum_size = label_size
+	label.size = label_size
+
+func _spawn_enemy_in_slot(enemy_id: String, slot: String, health_override: int = -1) -> Node:
+	if enemy_id == "" or not enemies_by_slot.has(slot):
+		return null
+
+	var scene_path: String = EnemyList.get_scene_path(enemy_id)
+	if scene_path.is_empty():
+		push_error("BattleScene: Missing scene path for enemy id %s" % enemy_id)
+		return null
+
+	var enemy_scene: PackedScene = load(scene_path)
+	if enemy_scene == null:
+		push_error("BattleScene: failed to load enemy scene %s" % scene_path)
+		return null
+
+	var enemy: Node = enemy_scene.instantiate()
+	if enemy.has_method("setup_from_enemy_id"):
+		enemy.setup_from_enemy_id(enemy_id)
+
+	enemy_container.add_child(enemy)
+	if enemy.has_method("set_combat_slot"):
+		enemy.set_combat_slot(slot, true)
+
+	if health_override > 0:
+		enemy.max_health = health_override
+		enemy.health = health_override
+
+	enemy.defeated.connect(_on_enemy_defeated.bind(enemy), CONNECT_ONE_SHOT)
+	enemies_by_slot[slot] = enemy
+	return enemy
+
+func can_summon_enemy_to_side_lane(enemy_id: String, max_alive: int = 0) -> bool:
+	_clean_enemy_refs()
+
+	if max_alive > 0 and _count_living_enemy_id(enemy_id) >= max_alive:
+		return false
+
+	for slot in ["left", "right"]:
+		var enemy = enemies_by_slot[slot]
+		if enemy == null or not is_instance_valid(enemy):
+			return true
+
+	return false
+
+func summon_enemy_to_side_lane(enemy_id: String, _summoner: Node = null, max_alive: int = 0, preferred_slots: Array = ["left", "right"]) -> Node:
+	_clean_enemy_refs()
+
+	if max_alive > 0 and _count_living_enemy_id(enemy_id) >= max_alive:
+		return null
+
+	for raw_slot in preferred_slots:
+		var slot: String = String(raw_slot)
+		if slot != "left" and slot != "right":
+			continue
+
+		var enemy = enemies_by_slot[slot]
+		if enemy != null and is_instance_valid(enemy):
+			continue
+
+		var summoned := _spawn_enemy_in_slot(enemy_id, slot)
+		_layout_enemies()
+		update_hud()
+		return summoned
+
+	return null
 
 func _on_fire_button_pressed() -> void:
 	if formation_animating or waiting_for_tutorial_start:
@@ -512,6 +603,8 @@ func enemy_turn() -> void:
 		_clean_enemy_refs()
 		_ensure_center_enemy()
 		_layout_enemies()
+
+	_apply_enemy_end_turn_passives()
 
 	if player_ship:
 		player_ship.clear_block()
@@ -674,6 +767,34 @@ func _clean_enemy_refs() -> void:
 	if current_enemy != null and not is_instance_valid(current_enemy):
 		current_enemy = null
 
+func _count_living_enemy_id(enemy_id: String) -> int:
+	var total: int = 0
+	for slot in ["left", "center", "right"]:
+		var enemy = enemies_by_slot[slot]
+		if enemy and is_instance_valid(enemy) and String(enemy.enemy_id) == enemy_id:
+			total += 1
+	return total
+
+func _apply_enemy_end_turn_passives() -> void:
+	if player_ship == null or player_ship.health <= 0:
+		return
+
+	for slot in ["left", "center", "right"]:
+		var enemy = enemies_by_slot[slot]
+		if enemy == null or not is_instance_valid(enemy):
+			continue
+		if not enemy.has_method("get_state_flag"):
+			continue
+
+		var passive_damage: int = int(enemy.get_state_flag("passive_end_turn_damage", 0))
+		if passive_damage <= 0:
+			continue
+
+		player_ship.take_damage(passive_damage)
+		log_message("%s presses the boarding action for %d damage." % [enemy.enemy_name, passive_damage])
+		if player_ship.health <= 0:
+			return
+
 func _finish_enemy_defeat_flow() -> void:
 	pending_enemy_defeat_flow = false
 
@@ -821,6 +942,9 @@ func is_mouse_over_enemy_body() -> bool:
 		return false
 
 	var body = current_enemy.get_node("BodyRect")
+	if body is Control:
+		return (body as Control).get_global_rect().has_point(get_global_mouse_position())
+
 	return Rect2(body.global_position, body.size).has_point(get_global_mouse_position())
 
 func update_enemy_name_label() -> void:
@@ -906,10 +1030,14 @@ func _position_label_for_enemy(label: Control, enemy: Node, y_offset: float) -> 
 
 	if enemy.has_node("BodyRect"):
 		var body = enemy.get_node("BodyRect")
-		center_x = body.global_position.x + body.size.x / 2.0
-		anchor_y = body.global_position.y
+		var body_rect := Rect2(body.global_position, body.size)
+		if body is Control:
+			body_rect = (body as Control).get_global_rect()
+
+		center_x = body_rect.position.x + body_rect.size.x / 2.0
+		anchor_y = body_rect.position.y
 		if y_offset >= 0.0:
-			anchor_y = body.global_position.y + body.size.y
+			anchor_y = body_rect.position.y + body_rect.size.y
 
 	label.position = Vector2(center_x - label_width / 2.0, anchor_y + y_offset)
 

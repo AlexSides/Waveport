@@ -6,7 +6,8 @@
 script = ExtResource("1_206jy")
 
 [node name="BodyRect" type="ColorRect" parent="."]
-custom_minimum_size = Vector2(100, 100)
-offset_right = 40.0
-offset_bottom = 40.0
-color = Color(0.961484, 0.582465, 0.569383, 1)
+offset_left = -200.0
+offset_top = -120.0
+offset_right = 200.0
+offset_bottom = 120.0
+color = Color(0.36, 0.28, 0.22, 1)

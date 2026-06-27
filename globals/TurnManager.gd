@@ -8,6 +8,7 @@ const QUEUE_ITEM_SCENE = preload("res://ui/QueueItem.tscn")
 @onready var queue_container: Node = null
 
 var action_queue: Array = []
+var cannon_load_slots: Array[Control] = []
 
 var max_commands: int = 4
 var current_commands: int = 4
@@ -32,13 +33,17 @@ var first_cannon_damage_bonus_this_turn: int = 0
 var module_cannon_damage_bonus: int = 0
 
 func _ready() -> void:
-	if queue_path and has_node(queue_path):
+	if String(queue_path) == "":
+		return
+
+	if has_node(queue_path):
 		queue_container = get_node(queue_path)
 	else:
-		print("TurnManager: no ActionQueue found at path:", queue_path)
+		push_warning("TurnManager: no ActionQueue found at path: %s" % queue_path)
 
 func reset_for_battle() -> void:
 	action_queue.clear()
+	_clear_cannon_load_slots()
 
 	max_commands = 4
 	current_commands = max_commands
@@ -65,9 +70,9 @@ func reset_for_battle() -> void:
 		for child in queue_container.get_children():
 			child.queue_free()
 
-	var battle_scene = get_tree().current_scene
+	var battle_scene: Variant = get_tree().current_scene
 	if battle_scene and battle_scene.has_method("get_player_ship"):
-		var player_ship = battle_scene.get_player_ship()
+		var player_ship: Variant = battle_scene.get_player_ship()
 		var combat_start_block: int = PlayerData.get_module_effect_total("combat_start_block")
 		if player_ship and combat_start_block > 0:
 			player_ship.add_block(combat_start_block)
@@ -75,11 +80,11 @@ func reset_for_battle() -> void:
 				battle_scene.log_message("Modules grant %d Block at combat start." % combat_start_block)
 
 func start_player_turn() -> void:
-	var battle_scene = get_tree().current_scene
+	var battle_scene: Variant = get_tree().current_scene
 	if not battle_scene:
 		return
 
-	var player_ship = null
+	var player_ship: Variant = null
 	if battle_scene.has_method("get_player_ship"):
 		player_ship = battle_scene.get_player_ship()
 
@@ -114,11 +119,11 @@ func start_player_turn() -> void:
 		battle_scene.update_hud()
 
 func end_player_turn() -> void:
-	var battle_scene = get_tree().current_scene
+	var battle_scene: Variant = get_tree().current_scene
 	if not battle_scene:
 		return
 
-	var player_ship = null
+	var player_ship: Variant = null
 	if battle_scene.has_method("get_player_ship"):
 		player_ship = battle_scene.get_player_ship()
 
@@ -137,7 +142,7 @@ func end_player_turn() -> void:
 		battle_scene.update_hud()
 
 func on_fire_button_pressed() -> void:
-	var battle_scene = get_tree().current_scene
+	var battle_scene: Variant = get_tree().current_scene
 	if not battle_scene:
 		return
 
@@ -157,11 +162,11 @@ func on_fire_button_pressed() -> void:
 			battle_scene.update_hud()
 		return
 
-	var enemy = null
+	var enemy: Variant = null
 	if battle_scene.has_method("get_current_enemy"):
 		enemy = battle_scene.get_current_enemy()
 
-	var player_ship = null
+	var player_ship: Variant = null
 	if battle_scene.has_method("get_player_ship"):
 		player_ship = battle_scene.get_player_ship()
 
@@ -247,11 +252,6 @@ func on_fire_button_pressed() -> void:
 		battle_scene.update_hud()
 
 func queue_card(card: Node) -> bool:
-	var limit: int = PlayerData.get_queue_limit()
-	if action_queue.size() >= limit:
-		UIManager.show_warning("Queue is full (max %d)" % limit)
-		return false
-
 	var card_data: Dictionary = CombatMath.build_queue_card_data(card, DeckManager.card_defs)
 	if card_data.is_empty():
 		push_error("TurnManager: Missing card definition for %s" % str(card.get_meta("card_id")))
@@ -259,6 +259,18 @@ func queue_card(card: Node) -> bool:
 
 	var card_cost: int = int(card_data.get("cost", card.get("cost")))
 	card_data["cost"] = card_cost
+
+	if bool(card_data.get("is_cannon", false)):
+		var first_empty_cannon: Control = _get_first_empty_cannon_slot(card)
+		if first_empty_cannon == null:
+			UIManager.show_warning("All cannons are loaded.")
+			return false
+		return load_card_into_cannon_slot(card, first_empty_cannon)
+
+	var limit: int = PlayerData.get_queue_limit()
+	if action_queue.size() >= limit:
+		UIManager.show_warning("Queue is full (max %d)" % limit)
+		return false
 
 	if not can_afford_cost(card_cost):
 		UIManager.show_warning("Not enough Commands")
@@ -274,6 +286,149 @@ func queue_card(card: Node) -> bool:
 		get_tree().current_scene.update_hud()
 
 	return true
+
+func register_cannon_load_slots(slots: Array) -> void:
+	cannon_load_slots.clear()
+
+	for slot_variant in slots:
+		if slot_variant is Control:
+			cannon_load_slots.append(slot_variant)
+
+	rebuild_cannon_queue_from_slots()
+
+func load_card_into_cannon_slot(card: Node, target_slot: Control, source_slot: Control = null) -> bool:
+	if target_slot == null or not target_slot.visible:
+		return false
+
+	if target_slot.has_method("can_accept_dragged_card"):
+		var can_accept: bool = bool(target_slot.call("can_accept_dragged_card", card))
+		if not can_accept:
+			return false
+
+	var card_data: Dictionary = _build_cannon_card_data(card)
+	if card_data.is_empty():
+		return false
+
+	var source_is_slot: bool = source_slot != null and source_slot.has_method("set_loaded_card_data")
+	var target_loaded: bool = false
+	if target_slot.has_method("is_loaded"):
+		target_loaded = bool(target_slot.call("is_loaded"))
+
+	var displaced_card_data: Dictionary = {}
+	if target_loaded and target_slot.has_method("get_loaded_card_data"):
+		displaced_card_data = Dictionary(target_slot.call("get_loaded_card_data"))
+
+	var card_cost: int = int(card_data.get("cost", 0))
+	var effective_commands: int = current_commands
+	if target_loaded and not source_is_slot:
+		var displaced_cost: int = int(displaced_card_data.get("cost", 0))
+		effective_commands = mini(current_commands + maxi(displaced_cost, 0), max_commands)
+
+	if effective_commands < maxi(card_cost, 0):
+		UIManager.show_warning("Not enough Commands")
+		return false
+
+	if target_loaded and not source_is_slot and not displaced_card_data.is_empty():
+		refund_commands(int(displaced_card_data.get("cost", 0)))
+
+	if target_slot.has_method("set_loaded_card_data"):
+		target_slot.call("set_loaded_card_data", card_data)
+
+	if source_is_slot and source_slot != target_slot and not displaced_card_data.is_empty():
+		source_slot.call("set_loaded_card_data", displaced_card_data)
+
+	spend_commands(card_cost)
+	rebuild_cannon_queue_from_slots()
+	_consume_loaded_card_node(card)
+
+	if target_loaded and not source_is_slot and not displaced_card_data.is_empty():
+		_add_card_to_hand_from_def(String(displaced_card_data.get("id", "")))
+
+	var scene: Node = get_tree().current_scene
+	if scene != null and scene.has_method("update_hud"):
+		scene.update_hud()
+
+	return true
+
+func begin_drag_loaded_cannon_card(source_slot: Control) -> void:
+	if source_slot == null or not source_slot.has_method("is_loaded"):
+		return
+	if not bool(source_slot.call("is_loaded")):
+		return
+
+	var card_data: Dictionary = Dictionary(source_slot.call("get_loaded_card_data"))
+	var card_id: String = String(card_data.get("id", ""))
+	if card_id == "":
+		return
+
+	var card_cost: int = int(card_data.get("cost", 0))
+	source_slot.call("clear_loaded_card")
+	refund_commands(card_cost)
+	rebuild_cannon_queue_from_slots()
+
+	var card: Node = DeckManager.create_card_instance(card_id)
+	if card == null:
+		source_slot.call("set_loaded_card_data", card_data)
+		spend_commands(card_cost)
+		rebuild_cannon_queue_from_slots()
+		return
+
+	if card.has_method("begin_drag_from_cannon_slot"):
+		card.call("begin_drag_from_cannon_slot", source_slot)
+	else:
+		var scene: Node = get_tree().current_scene
+		if scene != null:
+			scene.add_child(card)
+
+	var current_scene: Node = get_tree().current_scene
+	if current_scene != null and current_scene.has_method("update_hud"):
+		current_scene.update_hud()
+
+func rebuild_cannon_queue_from_slots() -> void:
+	action_queue.clear()
+	var loaded_slots: Array[Control] = []
+
+	for slot in cannon_load_slots:
+		if slot == null or not is_instance_valid(slot):
+			continue
+		if slot.has_method("set_damage_preview"):
+			slot.call("set_damage_preview", 0)
+		if not slot.visible or not slot.has_method("is_loaded"):
+			continue
+		if not bool(slot.call("is_loaded")):
+			continue
+		if not slot.has_method("get_loaded_card_data"):
+			continue
+
+		var card_data: Dictionary = Dictionary(slot.call("get_loaded_card_data"))
+		if not card_data.is_empty():
+			action_queue.append(card_data)
+			loaded_slots.append(slot)
+
+	refresh_cannon_slot_damage_previews(_get_current_preview_enemy(), loaded_slots)
+	_refresh_queue_ui()
+
+func refresh_cannon_slot_damage_previews(enemy: Variant = null, loaded_slots_override: Array[Control] = []) -> void:
+	var loaded_slots: Array[Control] = loaded_slots_override
+	if loaded_slots.is_empty():
+		loaded_slots = _get_loaded_cannon_slots()
+
+	for slot in cannon_load_slots:
+		if slot != null and is_instance_valid(slot) and slot.has_method("set_damage_preview"):
+			slot.call("set_damage_preview", 0)
+
+	if loaded_slots.is_empty():
+		return
+
+	var preview_steps: Array = CombatMath.simulate_queue(self, action_queue, enemy).get("steps", [])
+	var preview_count: int = mini(loaded_slots.size(), preview_steps.size())
+	for index in range(preview_count):
+		var slot: Control = loaded_slots[index]
+		if slot == null or not is_instance_valid(slot) or not slot.has_method("set_damage_preview"):
+			continue
+
+		var step: Dictionary = Dictionary(preview_steps[index])
+		slot.call("set_damage_preview", int(step.get("damage_total", 0)))
 
 func resolve_instant_card(card: Node) -> bool:
 	var card_cost: int = int(card.get("cost"))
@@ -309,7 +464,7 @@ func get_queued_cannons() -> int:
 	return total
 
 func get_empty_cannons() -> int:
-	return max(get_queue_limit() - get_queued_cannons(), 0)
+	return maxi(PlayerData.get_installed_cannon_count() - get_queued_cannons(), 0)
 
 func get_combat_value(key: String, enemy = null) -> int:
 	return CombatMath.get_combat_value(self, key, enemy)
@@ -344,11 +499,11 @@ func refund_commands(amount: int) -> void:
 	current_commands = min(current_commands + max(amount, 0), max_commands)
 
 func _add_card_to_hand_from_def(card_id: String) -> void:
-	var card = DeckManager.create_card_instance(card_id)
+	var card: Node = DeckManager.create_card_instance(card_id)
 	if card == null:
 		return
 
-	var battle_scene = get_tree().current_scene
+	var battle_scene: Node = get_tree().current_scene
 	if battle_scene and battle_scene.has_node("CardHand"):
 		battle_scene.get_node("CardHand").add_child(card)
 	else:
@@ -371,6 +526,7 @@ func _finalize_fired_queue(fired_queue: Array) -> void:
 
 func _clear_queue() -> void:
 	action_queue.clear()
+	_clear_cannon_load_slots()
 	_refresh_queue_ui()
 
 func _clear_turn_queue_modifiers() -> void:
@@ -385,12 +541,75 @@ func _refresh_queue_ui() -> void:
 		child.queue_free()
 
 	for card_data in action_queue:
-		var item = QUEUE_ITEM_SCENE.instantiate()
+		var item: Node = QUEUE_ITEM_SCENE.instantiate()
 		if item.has_method("setup"):
-			item.setup(card_data)
+			item.call("setup", card_data)
+		elif item.has_method("set_text"):
+			item.call("set_text", String(card_data.get("name", "Card")))
 		queue_container.add_child(item)
 
 func _should_skip_draw_after_fire(battle_scene: Node) -> bool:
 	if battle_scene and battle_scene.has_method("should_skip_draw_after_fire"):
 		return bool(battle_scene.should_skip_draw_after_fire())
 	return false
+
+func _build_cannon_card_data(card: Node) -> Dictionary:
+	var card_data: Dictionary = CombatMath.build_queue_card_data(card, DeckManager.card_defs)
+	if card_data.is_empty():
+		push_error("TurnManager: Missing card definition for %s" % str(card.get_meta("card_id")))
+		return {}
+
+	if not bool(card_data.get("is_cannon", false)):
+		UIManager.show_warning("Only cannon cards can load into cannons.")
+		return {}
+
+	var card_cost: int = int(card_data.get("cost", card.get("cost")))
+	card_data["cost"] = card_cost
+	return card_data
+
+func _consume_loaded_card_node(card: Node) -> void:
+	if card == null or not is_instance_valid(card):
+		return
+
+	DeckManager.remove_card_from_hand(card)
+
+func _clear_cannon_load_slots() -> void:
+	for slot in cannon_load_slots:
+		if slot == null or not is_instance_valid(slot):
+			continue
+		if slot.has_method("clear_loaded_card"):
+			slot.call("clear_loaded_card")
+
+func _get_first_empty_cannon_slot(card: Node) -> Control:
+	for slot in cannon_load_slots:
+		if slot == null or not is_instance_valid(slot):
+			continue
+		if not slot.visible or not slot.has_method("is_loaded"):
+			continue
+		if bool(slot.call("is_loaded")):
+			continue
+		if slot.has_method("can_accept_dragged_card") and not bool(slot.call("can_accept_dragged_card", card)):
+			continue
+		return slot
+
+	return null
+
+func _get_loaded_cannon_slots() -> Array[Control]:
+	var loaded_slots: Array[Control] = []
+
+	for slot in cannon_load_slots:
+		if slot == null or not is_instance_valid(slot):
+			continue
+		if not slot.visible or not slot.has_method("is_loaded"):
+			continue
+		if not bool(slot.call("is_loaded")):
+			continue
+		loaded_slots.append(slot)
+
+	return loaded_slots
+
+func _get_current_preview_enemy() -> Variant:
+	var scene: Variant = get_tree().current_scene
+	if scene != null and scene.has_method("get_current_enemy"):
+		return scene.call("get_current_enemy")
+	return null
