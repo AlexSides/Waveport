@@ -3,210 +3,282 @@ extends Control
 signal reward_taken
 
 const CardListData = preload("res://data/CardList.gd")
+const ModuleList = preload("res://data/ModuleList.gd")
 const RunConfig = preload("res://data/RunConfig.gd")
 
-var selected_reward: String = ""
+const MODE_MAIN := "main"
+const MODE_REWARD_CHOICE := "reward_choice"
+const MODE_REPLACE_CARGO := "replace_cargo"
+
 var plunder_index: int = 0
-var showing_reward_result: bool = false
-var current_cargo_sets: Array[String] = []
+var current_mode: String = MODE_MAIN
+var current_plunder: Dictionary = {}
+var pending_replace_choice_index: int = -1
+var main_status_message: String = ""
+var overlay_status_message: String = ""
 
-var set_selection_container: VBoxContainer
-var sets_row: HBoxContainer
-
+@onready var main_panel: Panel = $Panel
 @onready var title_label: Label = $Panel/VBoxContainer/TitleLabel
 @onready var status_label: Label = $Panel/VBoxContainer/StatusLabel
 @onready var gold_label: Label = $Panel/VBoxContainer/GoldLabel
 @onready var hull_label: Label = $Panel/VBoxContainer/HullLabel
-@onready var continue_button: Button = $Panel/VBoxContainer/ContinueButton
-@onready var treasure_button: Button = $Panel/VBoxContainer/TreasureButton
-@onready var salvage_button: Button = $Panel/VBoxContainer/SalvageButton
-@onready var cargo_button: Button = $Panel/VBoxContainer/CargoButton
-@onready var main_vbox: VBoxContainer = $Panel/VBoxContainer
+@onready var gold_button: Button = $Panel/VBoxContainer/TreasureButton
+@onready var reward_button: Button = $Panel/VBoxContainer/SalvageButton
+@onready var hidden_extra_button: Button = $Panel/VBoxContainer/CargoButton
+@onready var continue_button: Button = $ContinueButton
+@onready var back_button: Button = $BackButton
+
+@onready var reward_overlay: Control = $RewardOverlay
+@onready var overlay_title_label: Label = $RewardOverlay/Panel/VBoxContainer/TitleLabel
+@onready var overlay_status_label: Label = $RewardOverlay/Panel/VBoxContainer/StatusLabel
+@onready var choice_row: HBoxContainer = $RewardOverlay/Panel/VBoxContainer/ChoiceRow
+@onready var left_choice_button: Button = $RewardOverlay/Panel/VBoxContainer/ChoiceRow/LeftChoiceButton
+@onready var right_choice_button: Button = $RewardOverlay/Panel/VBoxContainer/ChoiceRow/RightChoiceButton
+@onready var replacement_options: VBoxContainer = $RewardOverlay/Panel/VBoxContainer/ReplacementOptions
 
 func _ready() -> void:
 	visible = false
-	continue_button.disabled = true
+	reward_overlay.visible = false
+	back_button.visible = false
 
-	treasure_button.pressed.connect(_on_treasure_pressed)
-	salvage_button.pressed.connect(_on_salvage_pressed)
-	cargo_button.pressed.connect(_on_cargo_pressed)
+	gold_button.pressed.connect(_on_gold_pressed)
+	reward_button.pressed.connect(_on_reward_pressed)
+	left_choice_button.pressed.connect(_on_choice_pressed.bind(0))
+	right_choice_button.pressed.connect(_on_choice_pressed.bind(1))
 	continue_button.pressed.connect(_on_continue_pressed)
+	back_button.pressed.connect(_on_back_pressed)
 
-	_build_set_selection_ui()
-	_refresh_labels()
-	_refresh_button_text()
+	hidden_extra_button.visible = false
+	_refresh_view()
 
-func _build_set_selection_ui() -> void:
-	set_selection_container = VBoxContainer.new()
-	set_selection_container.visible = false
-	set_selection_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	set_selection_container.add_theme_constant_override("separation", 12)
-
-	var sets_title := Label.new()
-	sets_title.text = "Choose a Set"
-	sets_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sets_title.add_theme_font_size_override("font_size", 26)
-	set_selection_container.add_child(sets_title)
-
-	sets_row = HBoxContainer.new()
-	sets_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sets_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	sets_row.add_theme_constant_override("separation", 16)
-	set_selection_container.add_child(sets_row)
-
-	main_vbox.remove_child(continue_button)
-	main_vbox.add_child(set_selection_container)
-	main_vbox.add_child(continue_button)
-
-func show_plunder() -> void:
-	selected_reward = ""
-	showing_reward_result = false
-	current_cargo_sets.clear()
-	visible = true
-	title_label.text = "Plunder"
-	status_label.text = "Choose one plunder reward."
-	continue_button.text = "Continue"
-	continue_button.disabled = true
-	set_selection_container.visible = false
-	_set_reward_choice_visible(true)
-	_refresh_labels()
-	_refresh_button_text()
-
-func _refresh_labels() -> void:
-	gold_label.text = "Gold: %d" % PlayerData.gold
-	hull_label.text = "Hull: %d / %d" % [PlayerData.current_health, PlayerData.current_max_health]
-
-func _refresh_button_text() -> void:
-	treasure_button.text = "Plunder Treasure"
-	salvage_button.text = "Salvage Scrap"
-	cargo_button.text = "Steal Cargo"
-
-	if selected_reward == "treasure":
-		treasure_button.text += "  [Selected]"
-	elif selected_reward == "salvage":
-		salvage_button.text += "  [Selected]"
-	elif selected_reward == "cargo":
-		cargo_button.text += "  [Selected]"
-
-func _set_reward_choice_visible(is_visible: bool) -> void:
-	treasure_button.visible = is_visible
-	salvage_button.visible = is_visible
-	cargo_button.visible = is_visible
-
-func _on_treasure_pressed() -> void:
-	selected_reward = "treasure"
-	status_label.text = "Selected: Treasure."
-	continue_button.disabled = false
-	set_selection_container.visible = false
-	_refresh_button_text()
-
-func _on_salvage_pressed() -> void:
-	selected_reward = "salvage"
-	status_label.text = "Selected: Scrap."
-	continue_button.disabled = false
-	set_selection_container.visible = false
-	_refresh_button_text()
-
-func _on_cargo_pressed() -> void:
-	selected_reward = "cargo"
-	status_label.text = "Choose a cargo set."
-	continue_button.disabled = true
-	_refresh_button_text()
-	_show_cargo_sets()
-
-func _get_treasure_reward() -> int:
-	if plunder_index == 0:
-		return 50
-	elif plunder_index == 1:
-		return 100
-	return 100
-
-func _get_salvage_reward() -> int:
-	if plunder_index == 0:
-		return 8
-	elif plunder_index == 1:
-		return 12
-	return 12
-
-func _get_player_ship_in_battle() -> Node:
-	var scene := get_tree().current_scene
-	if scene and scene.has_method("get_player_ship"):
-		return scene.get_player_ship()
-	return null
-
-func _apply_hull_repair(amount: int) -> void:
-	var player_ship := _get_player_ship_in_battle()
-
-	if player_ship and is_instance_valid(player_ship) and player_ship.has_method("repair"):
-		player_ship.repair(amount)
-	else:
-		PlayerData.repair_ship(amount)
-
-func _resolve_selected_reward() -> String:
-	if selected_reward == "treasure":
-		var gold_amount := _get_treasure_reward()
-		PlayerData.add_gold(gold_amount)
-		return "You plundered %d gold." % gold_amount
-
-	elif selected_reward == "salvage":
-		var hull_amount := _get_salvage_reward()
-		_apply_hull_repair(hull_amount)
-		return "You restored %d hull." % hull_amount
-
-	return "No reward selected."
-
-func _show_cargo_sets() -> void:
-	current_cargo_sets = RunConfig.get_random_cargo_set_ids()
-	_set_reward_choice_visible(false)
-	set_selection_container.visible = true
-
-	for child in sets_row.get_children():
-		child.queue_free()
-
-	for i in range(current_cargo_sets.size()):
-		var set_id := current_cargo_sets[i]
-		sets_row.add_child(_create_set_panel(set_id, i))
-
-func _create_set_panel(set_id: String, index: int) -> PanelContainer:
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(180, 220)
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	panel.add_child(vbox)
-
-	var title := Label.new()
-	title.text = RunConfig.get_cargo_set_name(set_id)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 22)
-	vbox.add_child(title)
-
-	for card_id_variant in RunConfig.get_cargo_set_cards(set_id):
-		var card_label := Label.new()
-		card_label.text = _get_card_display_name(String(card_id_variant))
-		card_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		card_label.add_theme_font_size_override("font_size", 18)
-		vbox.add_child(card_label)
-
-	var choose_button := Button.new()
-	choose_button.text = "Take Set"
-	choose_button.pressed.connect(_on_cargo_set_chosen.bind(index))
-	vbox.add_child(choose_button)
-
-	return panel
-
-func _on_cargo_set_chosen(index: int) -> void:
-	if index < 0 or index >= current_cargo_sets.size():
+func _input(event: InputEvent) -> void:
+	if not visible:
 		return
 
-	var set_id := current_cargo_sets[index]
-	var cards := RunConfig.get_cargo_set_cards(set_id)
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		if current_mode == MODE_REPLACE_CARGO:
+			_return_to_reward_choice()
+			get_viewport().set_input_as_handled()
+		elif current_mode == MODE_REWARD_CHOICE:
+			_return_to_main_screen()
+			get_viewport().set_input_as_handled()
 
+func show_plunder() -> void:
+	current_plunder = {
+		"gold_amount": RunConfig.get_plunder_gold_reward(plunder_index),
+		"gold_claimed": false,
+		"reward_claimed": false,
+		"choices": RunConfig.generate_plunder_reward_choices()
+	}
+	current_mode = MODE_MAIN
+	pending_replace_choice_index = -1
+	main_status_message = ""
+	overlay_status_message = ""
+	visible = true
+	_refresh_view()
+
+func _refresh_view() -> void:
+	_refresh_main_panel()
+	_refresh_overlay()
+	continue_button.visible = current_mode == MODE_MAIN
+	back_button.visible = current_mode != MODE_MAIN
+
+func _refresh_main_panel() -> void:
+	title_label.text = "Plunder"
+	gold_label.visible = false
+	hull_label.visible = false
+	hidden_extra_button.visible = false
+
+	var gold_claimed: bool = bool(current_plunder.get("gold_claimed", false))
+	var reward_claimed: bool = bool(current_plunder.get("reward_claimed", false))
+
+	gold_button.visible = not gold_claimed
+	gold_button.text = "Gold  +%d" % int(current_plunder.get("gold_amount", 0))
+	gold_button.disabled = gold_claimed
+
+	reward_button.visible = not reward_claimed
+	reward_button.text = "Reward"
+	reward_button.disabled = reward_claimed
+
+	if main_status_message != "":
+		status_label.text = main_status_message
+	else:
+		status_label.text = "Claim gold, open Reward, or continue sailing."
+
+	main_panel.modulate = Color(1, 1, 1, 0) if current_mode != MODE_MAIN else Color(1, 1, 1, 1)
+
+func _refresh_overlay() -> void:
+	reward_overlay.visible = current_mode != MODE_MAIN
+	if not reward_overlay.visible:
+		return
+
+	match current_mode:
+		MODE_REWARD_CHOICE:
+			_refresh_reward_choice_view()
+		MODE_REPLACE_CARGO:
+			_refresh_replace_cargo_view()
+
+func _refresh_reward_choice_view() -> void:
+	choice_row.visible = true
+	replacement_options.visible = false
+	overlay_title_label.text = "Choose Reward"
+	overlay_status_label.text = overlay_status_message if overlay_status_message != "" else "Choose one reward."
+
+	left_choice_button.disabled = false
+	right_choice_button.disabled = false
+	left_choice_button.text = _get_choice_button_text(_get_choice(0))
+	right_choice_button.text = _get_choice_button_text(_get_choice(1))
+
+func _refresh_replace_cargo_view() -> void:
+	choice_row.visible = false
+	replacement_options.visible = true
+
+	var choice: Dictionary = _get_pending_replace_choice()
+	var module_id: String = String(choice.get("module_id", ""))
+	var module_name: String = _get_module_display_name(module_id)
+	overlay_title_label.text = "Cargo Full"
+	overlay_status_label.text = "Choose a cargo module to replace with %s. Esc or Back to return." % module_name
+
+	for child in replacement_options.get_children():
+		child.queue_free()
+
+	var cargo_modules: Array[String] = PlayerData.get_cargo_modules()
+	for i in range(cargo_modules.size()):
+		replacement_options.add_child(_create_replace_button(i, String(cargo_modules[i]), module_name))
+
+func _create_replace_button(index: int, current_module_id: String, new_module_name: String) -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = Vector2(0, 72)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_size_override("font_size", 24)
+	button.text = "Replace Cargo %d: %s  ->  %s" % [
+		index + 1,
+		_get_module_display_name(current_module_id),
+		new_module_name
+	]
+	button.pressed.connect(_on_replace_cargo_pressed.bind(index))
+	return button
+
+func _on_gold_pressed() -> void:
+	if current_mode != MODE_MAIN or bool(current_plunder.get("gold_claimed", false)):
+		return
+
+	var gold_amount: int = int(current_plunder.get("gold_amount", 0))
+	PlayerData.add_gold(gold_amount)
+	current_plunder["gold_claimed"] = true
+	main_status_message = "Claimed %d gold." % gold_amount
+	_refresh_view()
+
+func _on_reward_pressed() -> void:
+	if current_mode != MODE_MAIN or bool(current_plunder.get("reward_claimed", false)):
+		return
+
+	current_mode = MODE_REWARD_CHOICE
+	overlay_status_message = ""
+	_refresh_view()
+
+func _on_choice_pressed(choice_index: int) -> void:
+	if current_mode != MODE_REWARD_CHOICE:
+		return
+
+	var choice: Dictionary = _get_choice(choice_index)
+	match String(choice.get("kind", "")):
+		"card_pack":
+			_claim_card_pack(choice)
+		"module":
+			_claim_module_choice(choice_index, choice)
+
+func _claim_card_pack(choice: Dictionary) -> void:
+	var cards: Array = Array(choice.get("cards", []))
 	PlayerData.add_cards_to_deck(cards)
 	PlayerData.queue_bonus_cards_for_next_battle(cards)
+	current_plunder["reward_claimed"] = true
+	current_mode = MODE_MAIN
+	pending_replace_choice_index = -1
+	main_status_message = "Claimed the %s pack and gained all 3 cards." % String(choice.get("pack_name", "Card"))
+	overlay_status_message = ""
+	_refresh_view()
 
-	_show_reward_result("You stole the %s set." % RunConfig.get_cargo_set_name(set_id))
+func _claim_module_choice(choice_index: int, choice: Dictionary) -> void:
+	var module_id: String = String(choice.get("module_id", ""))
+	if PlayerData.add_module_to_cargo(module_id):
+		current_plunder["reward_claimed"] = true
+		current_mode = MODE_MAIN
+		pending_replace_choice_index = -1
+		main_status_message = "Claimed %s to cargo." % _get_module_display_name(module_id)
+		overlay_status_message = ""
+		_refresh_view()
+		return
+
+	pending_replace_choice_index = choice_index
+	current_mode = MODE_REPLACE_CARGO
+	_refresh_view()
+
+func _on_replace_cargo_pressed(cargo_index: int) -> void:
+	var choice: Dictionary = _get_pending_replace_choice()
+	if choice.is_empty():
+		_return_to_reward_choice()
+		return
+
+	var module_id: String = String(choice.get("module_id", ""))
+	if not PlayerData.replace_cargo_module(cargo_index, module_id):
+		overlay_status_message = "Could not replace that cargo module."
+		_return_to_reward_choice()
+		return
+
+	current_plunder["reward_claimed"] = true
+	current_mode = MODE_MAIN
+	main_status_message = "Replaced cargo %d with %s." % [
+		cargo_index + 1,
+		_get_module_display_name(module_id)
+	]
+	overlay_status_message = ""
+	pending_replace_choice_index = -1
+	_refresh_view()
+
+func _on_back_pressed() -> void:
+	if current_mode == MODE_REPLACE_CARGO:
+		_return_to_reward_choice()
+	elif current_mode == MODE_REWARD_CHOICE:
+		_return_to_main_screen()
+
+func _return_to_reward_choice() -> void:
+	current_mode = MODE_REWARD_CHOICE
+	pending_replace_choice_index = -1
+	overlay_status_message = "Reward not claimed."
+	_refresh_view()
+
+func _return_to_main_screen() -> void:
+	current_mode = MODE_MAIN
+	pending_replace_choice_index = -1
+	overlay_status_message = ""
+	main_status_message = "Reward skipped."
+	_refresh_view()
+
+func _get_choice(choice_index: int) -> Dictionary:
+	var choices: Array = Array(current_plunder.get("choices", []))
+	if choice_index < 0 or choice_index >= choices.size():
+		return {}
+	return Dictionary(choices[choice_index])
+
+func _get_pending_replace_choice() -> Dictionary:
+	return _get_choice(pending_replace_choice_index)
+
+func _get_choice_button_text(choice: Dictionary) -> String:
+	match String(choice.get("kind", "")):
+		"card_pack":
+			var cards: Array = Array(choice.get("cards", []))
+			var card_names: Array[String] = []
+			for card_id_variant in cards:
+				card_names.append(_get_card_display_name(String(card_id_variant)))
+			return "%s Card Pack\nGain all 3: %s" % [
+				String(choice.get("pack_name", "Card")),
+				", ".join(card_names)
+			]
+		"module":
+			return "Module\nGain %s to cargo" % _get_module_display_name(String(choice.get("module_id", "")))
+		_:
+			return "Reward"
 
 func _get_card_display_name(card_id: String) -> String:
 	var defs = CardListData.new().CARD_LIBRARY
@@ -214,15 +286,11 @@ func _get_card_display_name(card_id: String) -> String:
 		return str(defs[card_id].get("name", card_id))
 	return card_id
 
-func _show_reward_result(message: String) -> void:
-	showing_reward_result = true
-	title_label.text = "Haul Secured"
-	status_label.text = message
-	continue_button.text = "Continue"
-	continue_button.disabled = false
-	_set_reward_choice_visible(false)
-	set_selection_container.visible = false
-	_refresh_labels()
+func _get_module_display_name(module_id: String) -> String:
+	if module_id == "":
+		return "Module"
+	var module_data: Dictionary = ModuleList.get_module(module_id)
+	return String(module_data.get("name", module_id))
 
 func _finish_plunder() -> void:
 	plunder_index += 1
@@ -230,12 +298,6 @@ func _finish_plunder() -> void:
 	reward_taken.emit()
 
 func _on_continue_pressed() -> void:
-	if showing_reward_result:
-		_finish_plunder()
+	if current_mode != MODE_MAIN:
 		return
-
-	if selected_reward == "":
-		return
-
-	var result_message := _resolve_selected_reward()
-	_show_reward_result(result_message)
+	_finish_plunder()

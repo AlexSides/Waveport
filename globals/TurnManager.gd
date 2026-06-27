@@ -9,11 +9,15 @@ const QUEUE_ITEM_SCENE = preload("res://ui/QueueItem.tscn")
 
 var action_queue: Array = []
 
+var max_commands: int = 4
+var current_commands: int = 4
+
 var cannon_bonus_this_turn: int = 0
 var pending_next_cannon_multiplier_percent: int = 100
 var gain_block_next_turn_pending: int = 0
 var hold_fast_active: bool = false
 var blood_rush_active: bool = false
+var blood_rush_draw_count: int = 0
 var lifesteal_attacks_this_turn_percent: int = 0
 var cannons_apply_burn_this_turn: int = 0
 var end_turn_without_firing_flag: bool = false
@@ -24,6 +28,8 @@ var bleed_taken_this_combat: int = 0
 var regen_stacks: int = 0
 var cards_played_this_turn: int = 0
 var cannons_fired_this_turn: int = 0
+var first_cannon_damage_bonus_this_turn: int = 0
+var module_cannon_damage_bonus: int = 0
 
 func _ready() -> void:
 	if queue_path and has_node(queue_path):
@@ -33,11 +39,16 @@ func _ready() -> void:
 
 func reset_for_battle() -> void:
 	action_queue.clear()
+
+	max_commands = 4
+	current_commands = max_commands
+
 	cannon_bonus_this_turn = 0
 	pending_next_cannon_multiplier_percent = 100
 	gain_block_next_turn_pending = 0
 	hold_fast_active = false
 	blood_rush_active = false
+	blood_rush_draw_count = 0
 	lifesteal_attacks_this_turn_percent = 0
 	cannons_apply_burn_this_turn = 0
 	end_turn_without_firing_flag = false
@@ -47,10 +58,21 @@ func reset_for_battle() -> void:
 	regen_stacks = 0
 	cards_played_this_turn = 0
 	cannons_fired_this_turn = 0
+	first_cannon_damage_bonus_this_turn = 0
+	module_cannon_damage_bonus = PlayerData.get_module_effect_total("cannon_damage_bonus")
 
 	if queue_container:
 		for child in queue_container.get_children():
 			child.queue_free()
+
+	var battle_scene = get_tree().current_scene
+	if battle_scene and battle_scene.has_method("get_player_ship"):
+		var player_ship = battle_scene.get_player_ship()
+		var combat_start_block: int = PlayerData.get_module_effect_total("combat_start_block")
+		if player_ship and combat_start_block > 0:
+			player_ship.add_block(combat_start_block)
+			if battle_scene.has_method("log_message"):
+				battle_scene.log_message("Modules grant %d Block at combat start." % combat_start_block)
 
 func start_player_turn() -> void:
 	var battle_scene = get_tree().current_scene
@@ -61,9 +83,12 @@ func start_player_turn() -> void:
 	if battle_scene.has_method("get_player_ship"):
 		player_ship = battle_scene.get_player_ship()
 
+	current_commands = max_commands
 	bleed_taken_this_turn = 0
 	cards_played_this_turn = 0
 	cannons_fired_this_turn = 0
+	first_cannon_damage_bonus_this_turn = PlayerData.get_module_effect_total("first_cannon_damage_bonus")
+	module_cannon_damage_bonus = PlayerData.get_module_effect_total("cannon_damage_bonus")
 
 	if player_ship and gain_block_next_turn_pending > 0:
 		player_ship.add_block(gain_block_next_turn_pending)
@@ -79,6 +104,7 @@ func start_player_turn() -> void:
 	cannon_bonus_this_turn = 0
 	hold_fast_active = false
 	blood_rush_active = false
+	blood_rush_draw_count = 0
 	lifesteal_attacks_this_turn_percent = 0
 	cannons_apply_burn_this_turn = 0
 	end_turn_without_firing_flag = false
@@ -139,6 +165,7 @@ func on_fire_button_pressed() -> void:
 	if battle_scene.has_method("get_player_ship"):
 		player_ship = battle_scene.get_player_ship()
 
+	var fired_queue: Array = action_queue.duplicate(true)
 	var sim: Dictionary = CombatMath.simulate_queue(self, action_queue, enemy)
 
 	for step in sim["steps"]:
@@ -171,6 +198,9 @@ func on_fire_button_pressed() -> void:
 					TurnEffects.apply_bleed_to_self(self, player_ship, int(card_data["bleed"]))
 
 				if enemy != null and is_instance_valid(enemy) and enemy.health > 0:
+					if enemy.has_method("is_targetable") and not enemy.is_targetable():
+						continue
+
 					enemy.take_damage(damage)
 
 					if lifesteal_attacks_this_turn_percent > 0 and player_ship:
@@ -200,6 +230,7 @@ func on_fire_button_pressed() -> void:
 			if player_ship:
 				player_ship.repair(int(CombatMath.get_card_numeric_value(self, card_data, "heal", enemy)))
 
+	_finalize_fired_queue(fired_queue)
 	end_player_turn()
 
 	if not _should_skip_draw_after_fire(battle_scene):
@@ -226,19 +257,37 @@ func queue_card(card: Node) -> bool:
 		push_error("TurnManager: Missing card definition for %s" % str(card.get_meta("card_id")))
 		return false
 
+	var card_cost: int = int(card_data.get("cost", card.get("cost")))
+	card_data["cost"] = card_cost
+
+	if not can_afford_cost(card_cost):
+		UIManager.show_warning("Not enough Commands")
+		return false
+
 	action_queue.append(card_data)
 	_refresh_queue_ui()
 
-	DeckManager.play_card(card)
-	card.queue_free()
+	spend_commands(card_cost)
+	DeckManager.remove_card_from_hand(card)
 
 	if get_tree().current_scene.has_method("update_hud"):
 		get_tree().current_scene.update_hud()
 
 	return true
 
-func resolve_instant_card(card: Node) -> void:
+func resolve_instant_card(card: Node) -> bool:
+	var card_cost: int = int(card.get("cost"))
+	if not can_afford_cost(card_cost):
+		UIManager.show_warning("Not enough Commands")
+		return false
+
+	spend_commands(card_cost)
 	TurnEffects.resolve_instant_card(self, card)
+
+	if get_tree().current_scene.has_method("update_hud"):
+		get_tree().current_scene.update_hud()
+
+	return true
 
 func is_card_in_queue(card: Node) -> bool:
 	for data in action_queue:
@@ -269,14 +318,56 @@ func get_queue_preview(enemy = null) -> Array:
 	return CombatMath.simulate_queue(self, action_queue, enemy).get("steps", [])
 
 func unload_queue() -> void:
-	var queue_copy: Array = action_queue.duplicate()
+	var queue_copy: Array = action_queue.duplicate(true)
 	_clear_queue()
 
 	for card_data in queue_copy:
-		TurnEffects.add_card_to_hand(String(card_data.get("id", "")))
+		refund_commands(int(card_data.get("cost", 0)))
+		_add_card_to_hand_from_def(String(card_data.get("id", "")))
 
 	if get_tree().current_scene.has_method("update_hud"):
 		get_tree().current_scene.update_hud()
+
+func get_current_commands() -> int:
+	return current_commands
+
+func get_max_commands() -> int:
+	return max_commands
+
+func can_afford_cost(card_cost: int) -> bool:
+	return current_commands >= max(card_cost, 0)
+
+func spend_commands(amount: int) -> void:
+	current_commands = max(current_commands - max(amount, 0), 0)
+
+func refund_commands(amount: int) -> void:
+	current_commands = min(current_commands + max(amount, 0), max_commands)
+
+func _add_card_to_hand_from_def(card_id: String) -> void:
+	var card = DeckManager.create_card_instance(card_id)
+	if card == null:
+		return
+
+	var battle_scene = get_tree().current_scene
+	if battle_scene and battle_scene.has_node("CardHand"):
+		battle_scene.get_node("CardHand").add_child(card)
+	else:
+		DeckManager.battle_scene.card_hand.add_child(card)
+
+	DeckManager.hand.append(card)
+	UIManager.update_deck_ui(DeckManager.deck.size(), DeckManager.discard_pile.size())
+
+func _finalize_fired_queue(fired_queue: Array) -> void:
+	for card_data in fired_queue:
+		var card_id: String = String(card_data.get("id", ""))
+		if card_id == "":
+			continue
+
+		var def: Dictionary = DeckManager.card_defs.get(card_id, {})
+		if bool(def.get("rot", false)):
+			PlayerData.remove_card_from_deck(card_id)
+		else:
+			DeckManager.discard_card_id(card_id)
 
 func _clear_queue() -> void:
 	action_queue.clear()

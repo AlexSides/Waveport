@@ -1,9 +1,24 @@
-[gd_scene load_steps=6 format=3 uid="uid://f0ylxmx8u5s3"]
+[gd_scene load_steps=9 format=3 uid="uid://f0ylxmx8u5s3"]
 
 [ext_resource type="Script" uid="uid://o1556vowgy8r" path="res://scenes/BattleScene.gd" id="1_ltshs"]
 [ext_resource type="PackedScene" uid="uid://ciue2h6aklxj8" path="res://ship/PlayerShip.tscn" id="2_3mvhd"]
 [ext_resource type="Script" uid="uid://bbtptsg0e0rd2" path="res://scenes/ModuleSlot.gd" id="2_gkmpl"]
-[ext_resource type="PackedScene" uid="uid://ct6186f53f3cn" path="res://scenes/PlunderScreen.tscn" id="4_28s16"]
+[ext_resource type="PackedScene" uid="uid://mpc6cu06sbqf" path="res://scenes/PlunderScreen.tscn" id="4_28s16"]
+[ext_resource type="PackedScene" uid="uid://bk53cn0ay226c" path="res://scenes/ShipPreview.tscn" id="5_shippreview"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_enemy_hp_bg"]
+bg_color = Color(0.223529, 0.223529, 0.223529, 0.9)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_enemy_hp_fill"]
+bg_color = Color(0.666667, 0.25098, 0.25098, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [sub_resource type="Theme" id="Theme_gkmpl"]
 default_base_scale = 0.5
@@ -132,14 +147,49 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 48
 text = "Unload"
 
-[node name="EnemyHPLabel" type="Label" parent="BattleUI"]
-custom_minimum_size = Vector2(200, 250)
+[node name="EnemyVitals" type="HBoxContainer" parent="BattleUI"]
+custom_minimum_size = Vector2(260, 44)
 layout_mode = 0
-offset_right = 40.0
-offset_bottom = 23.0
-theme_override_font_sizes/font_size = 30
-text = "HP"
+offset_right = 260.0
+offset_bottom = 44.0
+theme_override_constants/separation = 8
+
+[node name="EnemyBlockPanel" type="PanelContainer" parent="BattleUI/EnemyVitals"]
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+
+[node name="EnemyBlockLabel" type="Label" parent="BattleUI/EnemyVitals/EnemyBlockPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "0"
 horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="EnemyHPBar" type="ProgressBar" parent="BattleUI/EnemyVitals"]
+custom_minimum_size = Vector2(208, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/background = SubResource("StyleBoxFlat_enemy_hp_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_enemy_hp_fill")
+max_value = 10.0
+value = 10.0
+show_percentage = false
+
+[node name="EnemyHPText" type="Label" parent="BattleUI/EnemyVitals/EnemyHPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 1
+theme_override_font_sizes/font_size = 26
+text = "10 / 10"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="EnemyIntentLabel" type="Label" parent="BattleUI"]
 layout_mode = 0
@@ -176,6 +226,11 @@ theme_override_font_sizes/font_size = 36
 layout_mode = 2
 theme_override_font_sizes/font_size = 36
 text = "Gold: 0"
+
+[node name="CommandsLabel" type="Label" parent="HUD/PanelContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "Commands: 4 / 4"
 
 [node name="ModuleSlotsLabel" type="Label" parent="HUD/PanelContainer/VBoxContainer"]
 layout_mode = 2
@@ -220,10 +275,9 @@ size_flags_vertical = 3
 
 [node name="PlunderScreen" parent="." instance=ExtResource("4_28s16")]
 layout_mode = 1
-offset_left = 903.0
-offset_top = -132.0
-offset_right = 903.0
-offset_bottom = -132.0
+
+[node name="ShipPreview" parent="." instance=ExtResource("5_shippreview")]
+layout_mode = 1
 
 [node name="TutorialOverlay" type="Control" parent="."]
 layout_mode = 1

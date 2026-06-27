@@ -1,6 +1,7 @@
 extends Control
 
-const BATTLE_SCENE := "res://scenes/BattleScene.tscn"
+const EnemyRunConfig = preload("res://data/EnemyRunConfig.gd")
+const INTERMISSION_SCENE := "res://scenes/IntermissionScreen.tscn"
 const MAIN_MENU_SCENE := "res://scenes/MainMenu.tscn"
 
 var selected_captain: String = ""
@@ -58,9 +59,24 @@ func _select_captain(captain_id: String) -> void:
 	continue_button.disabled = false
 
 func _on_continue_pressed() -> void:
+	if selected_captain == "":
+		return
+
+	RunData.start_main_run()
 	RunData.selected_captain = selected_captain
 	PlayerData.apply_captain_starting_deck(selected_captain)
-	get_tree().change_scene_to_file(BATTLE_SCENE)
+	PlayerData.ensure_run_state()
+	SaveManager.save_pre_battle({
+		"version": 4,
+		"scene": "intermission",
+		"player": PlayerData.to_save_dict(),
+		"battle": {
+			"current_encounter": {},
+			"remaining_encounters": EnemyRunConfig.get_default_run_order(),
+			"plunder_index": 0
+		}
+	})
+	get_tree().change_scene_to_file(INTERMISSION_SCENE)
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file(MAIN_MENU_SCENE)

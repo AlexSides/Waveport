@@ -1,30 +1,38 @@
-[gd_scene load_steps=2 format=3 uid="uid://ct6186f53f3cn"]
+[gd_scene load_steps=2 format=3 uid="uid://mpc6cu06sbqf"]
 
 [ext_resource type="Script" uid="uid://caeusu6d1ch5b" path="res://scenes/PlunderScreen.gd" id="1_86hd1"]
 
 [node name="PlunderScreen" type="Control"]
+visible = false
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 1.0
-offset_right = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_86hd1")
 
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.55)
+
 [node name="Panel" type="Panel" parent="."]
-custom_minimum_size = Vector2(750, 900)
+custom_minimum_size = Vector2(760, 360)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -375.0
-offset_top = -450.0
-offset_right = 375.0
-offset_bottom = 450.0
+offset_left = -380.0
+offset_top = -180.0
+offset_right = 380.0
+offset_bottom = 180.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -33,49 +41,172 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 28.0
+offset_top = 28.0
+offset_right = -28.0
+offset_bottom = -28.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/separation = 18
 
 [node name="TitleLabel" type="Label" parent="Panel/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "Plunder Rewards"
+theme_override_font_sizes/font_size = 40
+text = "Plunder"
 horizontal_alignment = 1
 
 [node name="StatusLabel" type="Label" parent="Panel/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "Choose one plunder reward!"
+theme_override_font_sizes/font_size = 26
+text = "Claim gold, open Reward, or continue sailing."
 horizontal_alignment = 1
+autowrap_mode = 3
 
 [node name="GoldLabel" type="Label" parent="Panel/VBoxContainer"]
+visible = false
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "Gold : 0"
+theme_override_font_sizes/font_size = 24
+text = "Gold"
 horizontal_alignment = 1
 
 [node name="HullLabel" type="Label" parent="Panel/VBoxContainer"]
+visible = false
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "Hull: 0 / 0"
+theme_override_font_sizes/font_size = 24
+text = "Hull"
 horizontal_alignment = 1
 
 [node name="TreasureButton" type="Button" parent="Panel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "Plunder Treasure"
+theme_override_font_sizes/font_size = 28
+text = "Gold"
 
 [node name="SalvageButton" type="Button" parent="Panel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "Salvage Scrap"
+theme_override_font_sizes/font_size = 28
+text = "Reward"
 
 [node name="CargoButton" type="Button" parent="Panel/VBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "Steal Cargo"
+theme_override_font_sizes/font_size = 28
+text = "Unused"
 
-[node name="ContinueButton" type="Button" parent="Panel/VBoxContainer"]
+[node name="RewardOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dim" type="ColorRect" parent="RewardOverlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.78)
+
+[node name="Panel" type="Panel" parent="RewardOverlay"]
+custom_minimum_size = Vector2(940, 420)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -470.0
+offset_top = -210.0
+offset_right = 470.0
+offset_bottom = 210.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="RewardOverlay/Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 28.0
+offset_top = 28.0
+offset_right = -28.0
+offset_bottom = -28.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 18
+
+[node name="TitleLabel" type="Label" parent="RewardOverlay/Panel/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 40
+text = "Choose Reward"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="RewardOverlay/Panel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Choose one reward."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ChoiceRow" type="HBoxContainer" parent="RewardOverlay/Panel/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="LeftChoiceButton" type="Button" parent="RewardOverlay/Panel/VBoxContainer/ChoiceRow"]
+custom_minimum_size = Vector2(400, 220)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text = "Left Choice"
+
+[node name="RightChoiceButton" type="Button" parent="RewardOverlay/Panel/VBoxContainer/ChoiceRow"]
+custom_minimum_size = Vector2(400, 220)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text = "Right Choice"
+
+[node name="ReplacementOptions" type="VBoxContainer" parent="RewardOverlay/Panel/VBoxContainer"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ContinueButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -220.0
+offset_top = -100.0
+offset_right = -40.0
+offset_bottom = -40.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 28
 text = "Continue"
+
+[node name="BackButton" type="Button" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -220.0
+offset_top = -100.0
+offset_right = -40.0
+offset_bottom = -40.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 28
+text = "Back"

@@ -19,14 +19,15 @@ func _ready() -> void:
 func _on_play_again() -> void:
 	SaveManager.clear_save()
 	PlayerData.reset_run()
-	get_tree().change_scene_to_file("res://scenes/BattleScene.tscn")
+
+	if RunData.is_drill_mode():
+		RunData.selected_captain = "captain_1"
+		PlayerData.apply_captain_starting_deck("captain_1")
+		get_tree().change_scene_to_file("res://scenes/BattleScene.tscn")
+		return
+
+	get_tree().change_scene_to_file("res://scenes/CaptainSelect.tscn")
 
 func _on_quit() -> void:
 	SaveManager.clear_save()
 	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
-
-func _on_play_again_pressed() -> void:
-	pass
-
-func _on_quit_pressed() -> void:
-	pass

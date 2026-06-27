@@ -37,10 +37,14 @@ static func resolve_instant_card(turn_manager, card: Node) -> void:
 
 		"attack":
 			if enemy and is_instance_valid(enemy) and enemy.health > 0:
-				var damage := int(CombatMath.get_card_numeric_value(turn_manager, def, "attack", enemy))
-				if damage <= 0:
-					damage = int(def.get("value", 0))
-				enemy.take_damage(damage)
+				if not (enemy.has_method("is_targetable") and not enemy.is_targetable()):
+					var damage := int(CombatMath.get_card_numeric_value(turn_manager, def, "attack", enemy))
+					if damage <= 0:
+						damage = int(def.get("value", 0))
+					enemy.take_damage(damage)
+
+			if def.get("consume_all_block", false) and player_ship:
+				player_ship.clear_block()
 
 	if def.get("block", 0) > 0 and t != "block" and player_ship:
 		player_ship.add_block(int(def["block"]))
@@ -63,8 +67,9 @@ static func resolve_instant_card(turn_manager, card: Node) -> void:
 	if def.get("draw", 0) > 0:
 		draw_cards(int(def["draw"]))
 
-	if def.get("draw_per_bleed_this_turn", 0) > 0:
+	if def.get("draw_on_bleed_this_turn", 0) > 0:
 		turn_manager.blood_rush_active = true
+		turn_manager.blood_rush_draw_count = int(def["draw_on_bleed_this_turn"])
 
 	if def.get("lifesteal_attacks_this_turn_percent", 0) > 0:
 		turn_manager.lifesteal_attacks_this_turn_percent = int(def["lifesteal_attacks_this_turn_percent"])
@@ -113,19 +118,17 @@ static func resolve_instant_card(turn_manager, card: Node) -> void:
 static func apply_bleed_to_self(turn_manager, player_ship, amount: int) -> void:
 	if amount <= 0 or player_ship == null:
 		return
-
 	turn_manager.bleed_taken_this_turn += amount
 	turn_manager.bleed_taken_this_combat += amount
-
 	player_ship.lose_hp(amount)
-
 	if turn_manager.blood_rush_active:
-		draw_cards(amount)
+		draw_cards(int(turn_manager.blood_rush_draw_count))
 
 static func apply_bleed_to_enemy(enemy, amount: int) -> void:
 	if amount <= 0 or enemy == null:
 		return
-
+	if enemy.has_method("is_targetable") and not enemy.is_targetable():
+		return
 	if enemy.has_method("apply_bleed"):
 		enemy.apply_bleed(amount)
 	else:
@@ -134,7 +137,8 @@ static func apply_bleed_to_enemy(enemy, amount: int) -> void:
 static func apply_burn_to_enemy(enemy, amount: int) -> void:
 	if amount <= 0 or enemy == null:
 		return
-
+	if enemy.has_method("is_targetable") and not enemy.is_targetable():
+		return
 	if enemy.has_method("apply_burn"):
 		enemy.apply_burn(amount)
 	else:
@@ -143,7 +147,8 @@ static func apply_burn_to_enemy(enemy, amount: int) -> void:
 static func double_enemy_burn(enemy) -> void:
 	if enemy == null:
 		return
-
+	if enemy.has_method("is_targetable") and not enemy.is_targetable():
+		return
 	if enemy.has_method("get_burn") and enemy.has_method("apply_burn"):
 		var current_burn: int = int(enemy.get_burn())
 		if current_burn > 0:
@@ -156,7 +161,6 @@ static func double_enemy_burn(enemy) -> void:
 static func draw_cards(count: int) -> void:
 	if count <= 0:
 		return
-
 	if DeckManager.has_method("draw_cards"):
 		DeckManager.draw_cards(count)
 	else:
@@ -165,35 +169,25 @@ static func draw_cards(count: int) -> void:
 				DeckManager.draw_card()
 
 static func add_card_to_hand(card_id: String) -> void:
+	if card_id == "":
+		return
 	var battle_scene: Node = Engine.get_main_loop().current_scene
 	if battle_scene == null:
 		return
-	if battle_scene.card_hand == null:
-		return
 	if not DeckManager.card_defs.has(card_id):
 		return
-
-	var def: Dictionary = DeckManager.card_defs[card_id]
-	var card: Node = DeckManager.card_scene.instantiate()
-
-	card.set_meta("card_id", card_id)
-	card.card_name = String(def.get("name", card_id))
-	card.card_type = String(def.get("type", "Skill")).to_lower()
-	card.value = int(def.get("value", 0))
-	card.description = String(def.get("description", ""))
-	card.card_category = String(def.get("category", "Queue"))
-	card.art_path = String(def.get("art", ""))
-	card.frame_path = String(def.get("frame", ""))
-	card.hide_text = bool(def.get("hide_text", false))
-	card.update_card()
-
+	var card: Node = DeckManager.create_card_instance(card_id)
+	if card == null:
+		return
+	if battle_scene.card_hand == null:
+		return
 	battle_scene.card_hand.add_child(card)
 	DeckManager.hand.append(card)
+	UIManager.update_deck_ui(DeckManager.deck.size(), DeckManager.discard_pile.size())
 
 static func burn_flames_left_in_hand(player_ship) -> void:
 	if player_ship == null:
 		return
-
 	for card in DeckManager.hand:
 		if is_instance_valid(card):
 			var card_id = card.get_meta("card_id", "")

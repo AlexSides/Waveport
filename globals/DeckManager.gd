@@ -1,5 +1,7 @@
 extends Node
 
+const ModuleList = preload("res://data/ModuleList.gd")
+
 var deck: Array = []
 var hand: Array = []
 var discard_pile: Array = []
@@ -17,20 +19,13 @@ func reset() -> void:
 	_clear_hand_nodes()
 	hand.clear()
 	discard_pile.clear()
+	max_hand_size = PlayerData.get_max_hand_size()
 	deck = PlayerData.get_battle_deck()
 	deck.shuffle()
 
-	var battle_bonus_cards: Array[String] = []
-
-	var module_bonus_cards: Array[String] = PlayerData.get_module_bonus_cards()
-	for card_id in module_bonus_cards:
-		battle_bonus_cards.append(card_id)
-
 	var pending_bonus_cards: Array[String] = PlayerData.consume_pending_bonus_cards()
-	for card_id in pending_bonus_cards:
-		battle_bonus_cards.append(card_id)
 
-	for card_id in battle_bonus_cards:
+	for card_id in pending_bonus_cards:
 		var idx: int = deck.find(card_id)
 		if idx != -1:
 			deck.remove_at(idx)
@@ -56,23 +51,31 @@ func draw_cards(count: int = 1) -> void:
 
 	UIManager.update_deck_ui(deck.size(), discard_pile.size())
 
-func _create_card_in_hand(card_id: String) -> void:
+func create_card_instance(card_id: String) -> Node:
 	var def: Dictionary = card_defs.get(card_id, {})
 	if def.is_empty():
 		push_error("DeckManager: Missing card definition for %s" % card_id)
-		return
+		return null
 
 	var card = card_scene.instantiate()
 	card.set_meta("card_id", card_id)
+	card.card_id = card_id
 	card.card_name = String(def.get("name", card_id))
 	card.card_type = String(def.get("type", "Skill")).to_lower()
 	card.value = _get_display_value(def)
+	card.cost = int(def.get("cost", 0))
 	card.description = String(def.get("description", ""))
 	card.card_category = String(def.get("category", "Queue"))
 	card.art_path = String(def.get("art", ""))
 	card.frame_path = String(def.get("frame", ""))
 	card.hide_text = bool(def.get("hide_text", false))
 	card.update_card()
+	return card
+
+func _create_card_in_hand(card_id: String) -> void:
+	var card = create_card_instance(card_id)
+	if card == null:
+		return
 
 	battle_scene.card_hand.add_child(card)
 	hand.append(card)
@@ -95,6 +98,22 @@ func play_card(card: Node) -> void:
 
 	UIManager.update_deck_ui(deck.size(), discard_pile.size())
 
+func remove_card_from_hand(card: Node) -> void:
+	if hand.has(card):
+		hand.erase(card)
+
+	if is_instance_valid(card):
+		card.queue_free()
+
+	UIManager.update_deck_ui(deck.size(), discard_pile.size())
+
+func discard_card_id(card_id: String) -> void:
+	if card_id == "":
+		return
+
+	discard_pile.append(card_id)
+	UIManager.update_deck_ui(deck.size(), discard_pile.size())
+
 func resolve_fire_phase() -> void:
 	var needed: int = max_hand_size - hand.size()
 	if needed <= 0:
@@ -102,6 +121,58 @@ func resolve_fire_phase() -> void:
 		return
 
 	draw_cards(needed)
+	UIManager.update_deck_ui(deck.size(), discard_pile.size())
+
+func refresh_module_granted_cards() -> void:
+	if card_defs == null:
+		return
+
+	var module_card_ids: Array[String] = ModuleList.get_all_module_granted_card_ids()
+	if module_card_ids.is_empty():
+		return
+
+	var desired_counts: Dictionary = {}
+	for card_id in PlayerData.get_module_granted_cards():
+		desired_counts[card_id] = int(desired_counts.get(card_id, 0)) + 1
+
+	var current_counts: Dictionary = {}
+	for card_id in deck:
+		var deck_card_id: String = String(card_id)
+		if module_card_ids.has(deck_card_id):
+			current_counts[deck_card_id] = int(current_counts.get(deck_card_id, 0)) + 1
+
+	for card_id in discard_pile:
+		var discard_card_id: String = String(card_id)
+		if module_card_ids.has(discard_card_id):
+			current_counts[discard_card_id] = int(current_counts.get(discard_card_id, 0)) + 1
+
+	for card in hand:
+		if card == null or not is_instance_valid(card):
+			continue
+		var hand_card_id: String = String(card.get_meta("card_id", ""))
+		if module_card_ids.has(hand_card_id):
+			current_counts[hand_card_id] = int(current_counts.get(hand_card_id, 0)) + 1
+
+	for card_id in module_card_ids:
+		var desired: int = int(desired_counts.get(card_id, 0))
+		var current: int = int(current_counts.get(card_id, 0))
+
+		while current > desired:
+			if _remove_card_id_from_zone(deck, card_id):
+				current -= 1
+				continue
+			if _remove_card_id_from_zone(discard_pile, card_id):
+				current -= 1
+				continue
+			if _remove_card_instance_from_hand(card_id):
+				current -= 1
+				continue
+			break
+
+		while current < desired:
+			deck.append(card_id)
+			current += 1
+
 	UIManager.update_deck_ui(deck.size(), discard_pile.size())
 
 func remove_card_permanently(card: Node) -> void:
@@ -129,6 +200,23 @@ func _clear_hand_nodes() -> void:
 	if battle_scene and battle_scene.card_hand:
 		for child in battle_scene.card_hand.get_children():
 			child.queue_free()
+
+func _remove_card_id_from_zone(zone: Array, card_id: String) -> bool:
+	var idx: int = zone.find(card_id)
+	if idx == -1:
+		return false
+	zone.remove_at(idx)
+	return true
+
+func _remove_card_instance_from_hand(card_id: String) -> bool:
+	for card in hand.duplicate():
+		if card == null or not is_instance_valid(card):
+			continue
+		if String(card.get_meta("card_id", "")) != card_id:
+			continue
+		remove_card_from_hand(card)
+		return true
+	return false
 
 func _get_display_value(def: Dictionary) -> int:
 	if def.has("value"):

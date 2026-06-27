@@ -6,6 +6,7 @@ var frame_path = ""
 var hide_text = false
 var card_type = ""
 var value = 0
+var cost: int = 0
 var description = ""
 var is_selected = false
 var card_id = ""
@@ -30,6 +31,7 @@ func _ready() -> void:
 func update_card() -> void:
 	$CardFrame/NameLabel.text = card_name
 	$CardFrame/DescLabel.text = description.replace("X", str(value))
+	$CardFrame/CostLabel.text = str(cost)
 	$CardFrame/NameLabel.visible = not hide_text
 	$CardFrame/DescLabel.visible = not hide_text
 
@@ -150,9 +152,12 @@ func play_card() -> void:
 				return_to_hand()
 				return
 		"Instant":
-			TurnManager.resolve_instant_card(self)
+			if not TurnManager.resolve_instant_card(self):
+				return_to_hand()
+				return
 		_:
 			print("Unknown card category:", card_category)
+			return_to_hand()
 
 func return_to_hand() -> void:
 	if get_parent():

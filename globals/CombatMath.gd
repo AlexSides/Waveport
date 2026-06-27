@@ -18,6 +18,13 @@ static func get_combat_value(turn_manager, key: String, enemy = null) -> int:
 			return turn_manager.cards_played_this_turn
 		"cannons_fired_this_turn":
 			return turn_manager.cannons_fired_this_turn
+		"current_block":
+			var battle_scene = turn_manager.get_tree().current_scene
+			if battle_scene and battle_scene.has_method("get_player_ship"):
+				var player_ship = battle_scene.get_player_ship()
+				if player_ship != null:
+					return int(player_ship.block)
+			return 0
 		"enemy_burn":
 			if enemy and enemy.has_method("get_burn"):
 				return int(enemy.get_burn())
@@ -53,6 +60,7 @@ static func evaluate_formula(turn_manager, formula: String, enemy = null) -> int
 		"bleed_taken_this_combat",
 		"cards_played_this_turn",
 		"cannons_fired_this_turn",
+		"current_block",
 		"enemy_burn"
 	])
 
@@ -70,6 +78,7 @@ static func evaluate_formula(turn_manager, formula: String, enemy = null) -> int
 		get_combat_value(turn_manager, "bleed_taken_this_combat", enemy),
 		get_combat_value(turn_manager, "cards_played_this_turn", enemy),
 		get_combat_value(turn_manager, "cannons_fired_this_turn", enemy),
+		get_combat_value(turn_manager, "current_block", enemy),
 		get_combat_value(turn_manager, "enemy_burn", enemy)
 	]
 
@@ -94,7 +103,9 @@ static func get_card_base_attack_value(turn_manager, card_data: Dictionary, enem
 static func simulate_queue(turn_manager, action_queue: Array, enemy = null) -> Dictionary:
 	var steps: Array = []
 	var preview_cannon_bonus: int = turn_manager.cannon_bonus_this_turn
+	var preview_module_cannon_bonus: int = turn_manager.module_cannon_damage_bonus
 	var preview_next_multiplier: int = turn_manager.pending_next_cannon_multiplier_percent
+	var preview_first_cannon_bonus: int = turn_manager.first_cannon_damage_bonus_this_turn
 	var last_cannon_index := -1
 
 	for i in range(action_queue.size()):
@@ -132,6 +143,10 @@ static func simulate_queue(turn_manager, action_queue: Array, enemy = null) -> D
 
 				if card_data.get("is_cannon", false):
 					damage += preview_cannon_bonus
+					damage += preview_module_cannon_bonus
+					if preview_first_cannon_bonus > 0:
+						damage += preview_first_cannon_bonus
+						preview_first_cannon_bonus = 0
 
 					if preview_next_multiplier > 100:
 						damage = int(floor(damage * preview_next_multiplier / 100.0))

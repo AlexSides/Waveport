@@ -39,7 +39,7 @@ text = "Waveport"
 [node name="PlayButton" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 36
-text = "Play"
+text = "New Run"
 
 [node name="ContinueButton" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
 layout_mode = 2
@@ -51,6 +51,11 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 36
 text = "Abandon Run"
 
+[node name="DrillsButton" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "Drills"
+
 [node name="OptionButton" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 36
@@ -60,8 +65,3 @@ text = "Options"
 layout_mode = 2
 theme_override_font_sizes/font_size = 36
 text = "Quit"
-
-[connection signal="pressed" from="Panel/CenterContainer/VBoxContainer/PlayButton" to="." method="_on_play_pressed"]
-[connection signal="pressed" from="Panel/CenterContainer/VBoxContainer/ContinueButton" to="." method="_on_play_pressed"]
-[connection signal="pressed" from="Panel/CenterContainer/VBoxContainer/AbandonButton" to="." method="_on_play_pressed"]
-[connection signal="pressed" from="Panel/CenterContainer/VBoxContainer/QuitButton" to="." method="_on_quit_pressed"]

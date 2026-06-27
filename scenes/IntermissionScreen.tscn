@@ -1,0 +1,91 @@
+[gd_scene load_steps=3 format=3 uid="uid://5jkm4tktg1k1"]
+
+[ext_resource type="Script" uid="uid://g0vasfdjlnjt" path="res://scenes/IntermissionScreen.gd" id="1_intermission"]
+[ext_resource type="PackedScene" uid="uid://bk53cn0ay226c" path="res://scenes/ShipPreview.tscn" id="3_preview"]
+
+[node name="IntermissionScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_intermission")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0470588, 0.0862745, 0.129412, 1)
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -420.0
+offset_top = -160.0
+offset_right = 420.0
+offset_bottom = 160.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="CenterContainer" type="CenterContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/CenterContainer"]
+custom_minimum_size = Vector2(700, 220)
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="Panel/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 42
+text = "Voyage Intermission"
+horizontal_alignment = 1
+
+[node name="SummaryLabel" type="Label" parent="Panel/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Ship | Hull | Gold | Cargo | Battles Ahead"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="Panel/CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(680, 64)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Open Shipyard to manage modules, then sail on when ready."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ButtonsRow" type="HBoxContainer" parent="Panel/CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="ShipyardButton" type="Button" parent="Panel/CenterContainer/VBoxContainer/ButtonsRow"]
+custom_minimum_size = Vector2(220, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Shipyard"
+
+[node name="SailButton" type="Button" parent="Panel/CenterContainer/VBoxContainer/ButtonsRow"]
+custom_minimum_size = Vector2(200, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Next Battle"
+
+[node name="ShipPreview" parent="." instance=ExtResource("3_preview")]
+visible = false
+layout_mode = 1

@@ -3,6 +3,9 @@ extends Control
 const EnemyList = preload("res://data/EnemyList.gd")
 const EnemyRunConfig = preload("res://data/EnemyRunConfig.gd")
 const TurnEffects = preload("res://globals/TurnEffects.gd")
+const INTERMISSION_SCENE := "res://scenes/IntermissionScreen.tscn"
+const SANDBOX_MENU_SCENE := "res://scenes/SandboxMenu.tscn"
+const DEFAULT_SANDBOX_CAPTAIN_ID := "captain_1"
 
 const ROTATE_STEP_DELAY := 0.45
 
@@ -90,17 +93,40 @@ const TUTORIAL_DRILL_5_ENCOUNTER := {
 @onready var block_label = $HUD/PanelContainer/VBoxContainer/BlockLabel
 @onready var queue_label = $HUD/PanelContainer/VBoxContainer/QueueLabel
 @onready var enemy_intent_label = $BattleUI/EnemyIntentLabel
+@onready var enemy_vitals = $BattleUI/EnemyVitals
 @onready var fire_button = $BattleUI/ButtonsContainer/FireButton
 @onready var unload_button = $BattleUI/ButtonsContainer/UnloadButton
 @onready var plunder_screen = $PlunderScreen
-@onready var enemy_hp_label = $BattleUI/EnemyHPLabel
 @onready var enemy_name_label = $BattleUI/EnemyNameLabel
 @onready var gold_label = $HUD/PanelContainer/VBoxContainer/GoldLabel
+@onready var commands_label = $HUD/PanelContainer/VBoxContainer/CommandsLabel
 @onready var module_slots_label = $HUD/PanelContainer/VBoxContainer/ModuleSlotsLabel
 @onready var tutorial_overlay = $TutorialOverlay
 @onready var tutorial_title = $TutorialOverlay/PanelContainer/VBoxContainer/TitleLabel
 @onready var tutorial_body = $TutorialOverlay/PanelContainer/VBoxContainer/BodyLabel
 @onready var tutorial_button = $TutorialOverlay/PanelContainer/VBoxContainer/ContinueButton
+@onready var ship_preview: Control = $ShipPreview
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_TAB:
+			if ship_preview and ship_preview.has_method("toggle_preview"):
+				ship_preview.toggle_preview()
+				_mark_input_handled()
+				return
+
+		if RunData.is_sandbox_mode():
+			var preview_visible: bool = ship_preview != null and ship_preview.visible
+
+			if event.keycode == KEY_R and not preview_visible:
+				_mark_input_handled()
+				_restart_sandbox_fight()
+				return
+
+			if event.keycode == KEY_ESCAPE and not preview_visible:
+				_mark_input_handled()
+				_return_to_sandbox_menu()
+				return
 
 var encounter_queue: Array = []
 var current_encounter: Dictionary = {}
@@ -112,15 +138,20 @@ var enemies_by_slot := {
 	"right": null
 }
 
-var enemy_hp_labels := {}
+var enemy_vitals_containers := {}
+var enemy_hp_bars := {}
+var enemy_hp_text_labels := {}
+var enemy_block_panels := {}
+var enemy_block_labels := {}
 var enemy_intent_labels := {}
 
 var resolving_player_fire: bool = false
 var pending_enemy_defeat_flow: bool = false
 var formation_animating: bool = false
 var waiting_for_tutorial_start: bool = false
+var sandbox_result_pending: bool = false
 
-var tutorial_active: bool = true
+var tutorial_active: bool = false
 var tutorial_step: int = TUT_WELCOME
 var tutorial_pause_after_fire: bool = false
 var tutorial_waiting_for_enemy_turn_result: bool = false
@@ -131,16 +162,23 @@ func _ready() -> void:
 	player_ship.defeated.connect(_on_player_defeated)
 	plunder_screen.reward_taken.connect(_on_plunder_finished)
 	tutorial_button.pressed.connect(_on_tutorial_continue_pressed)
+	_set_sandbox_result_pending(false)
 
 	_setup_enemy_slot_labels()
 
-	var restore_state: Dictionary = SaveManager.consume_requested_save()
+	var restore_state: Dictionary = {}
+	if not RunData.is_sandbox_mode():
+		restore_state = SaveManager.consume_requested_save()
 	if restore_state.is_empty():
 		_start_new_run_state()
 	else:
 		_restore_run_state(restore_state)
-		tutorial_active = false
-		tutorial_step = TUT_DONE
+
+	tutorial_active = false
+	tutorial_step = TUT_DONE
+	tutorial_pause_after_fire = false
+	tutorial_waiting_for_enemy_turn_result = false
+	tutorial_plunder_demo_active = false
 
 	GameManager.begin_battle(self)
 
@@ -187,6 +225,7 @@ func get_current_enemy() -> Node:
 	return null
 
 func start_player_turn() -> void:
+	_activate_enemy_prepared_block()
 	TurnManager.start_player_turn()
 	update_hud()
 
@@ -204,7 +243,8 @@ func update_hud() -> void:
 		hp_label.text = "HP: %d / %d" % [player_ship.health, player_ship.max_health]
 		block_label.text = "Block: %d" % player_ship.block
 		gold_label.text = "Gold: %d" % PlayerData.gold
-		module_slots_label.text = "Modules: %d / %d" % [PlayerData.modules.size(), player_ship.max_module_slots]
+		commands_label.text = "Commands: %d / %d" % [TurnManager.get_current_commands(), TurnManager.get_max_commands()]
+		module_slots_label.text = "Modules: %d / %d" % [PlayerData.get_active_modules().size(), player_ship.max_module_slots]
 
 	var queue_texts: Array[String] = []
 	var preview_steps: Array = TurnManager.get_queue_preview(get_current_enemy())
@@ -261,10 +301,10 @@ func spawn_enemy(encounter_override: Dictionary = {}) -> void:
 			continue
 
 		var enemy: Node = enemy_scene.instantiate()
-		$BattleWorld/EnemyContainer.add_child(enemy)
-
 		if enemy.has_method("setup_from_enemy_id"):
 			enemy.setup_from_enemy_id(enemy_id)
+
+		$BattleWorld/EnemyContainer.add_child(enemy)
 		if enemy.has_method("set_combat_slot"):
 			enemy.set_combat_slot(slot, true)
 
@@ -305,8 +345,8 @@ func _layout_enemies() -> void:
 	_clean_enemy_refs()
 
 	var center_pos := Vector2(800, 400)
-	var left_pos := Vector2(660, 340)
-	var right_pos := Vector2(940, 340)
+	var left_pos := Vector2(600, 340)
+	var right_pos := Vector2(1000, 340)
 
 	for slot in ["left", "center", "right"]:
 		var enemy = enemies_by_slot[slot]
@@ -326,6 +366,8 @@ func _layout_enemies() -> void:
 
 func _on_fire_button_pressed() -> void:
 	if formation_animating or waiting_for_tutorial_start:
+		return
+	if sandbox_result_pending:
 		return
 
 	if tutorial_active:
@@ -420,6 +462,8 @@ func _on_fire_button_pressed() -> void:
 func _on_unload_button_pressed() -> void:
 	if formation_animating or waiting_for_tutorial_start:
 		return
+	if sandbox_result_pending:
+		return
 
 	if tutorial_active:
 		if tutorial_overlay.visible:
@@ -441,6 +485,7 @@ func enemy_turn() -> void:
 	_clean_enemy_refs()
 	_ensure_center_enemy()
 	_layout_enemies()
+	_clear_enemy_active_block()
 
 	for slot in ["left", "center", "right"]:
 		var enemy = enemies_by_slot[slot]
@@ -632,6 +677,14 @@ func _clean_enemy_refs() -> void:
 func _finish_enemy_defeat_flow() -> void:
 	pending_enemy_defeat_flow = false
 
+	if RunData.is_sandbox_mode():
+		_enter_sandbox_result_state("Sandbox enemy defeated. Press R to restart or ESC to return.")
+		return
+
+	if RunData.is_drill_mode():
+		end_battle(true)
+		return
+
 	if tutorial_active:
 		match tutorial_step:
 			TUT_DRILL_1_FIRE:
@@ -692,11 +745,10 @@ func _finish_enemy_defeat_flow() -> void:
 		plunder_screen.show_plunder()
 
 func _on_plunder_finished() -> void:
-	show_battle_ui()
-	TurnManager.reset_for_battle()
-	DeckManager.reset()
-
 	if tutorial_plunder_demo_active:
+		show_battle_ui()
+		TurnManager.reset_for_battle()
+		DeckManager.reset()
 		tutorial_plunder_demo_active = false
 		tutorial_active = false
 		tutorial_step = TUT_DONE
@@ -706,17 +758,29 @@ func _on_plunder_finished() -> void:
 		_save_pre_battle_state()
 		return
 
-	spawn_enemy()
-	start_player_turn()
-	update_hud()
-	_save_pre_battle_state()
+	_save_intermission_state()
+	get_tree().change_scene_to_file(INTERMISSION_SCENE)
 
 func _on_player_defeated() -> void:
 	log_message("Your ship has been destroyed!")
 	end_battle(false)
 
 func end_battle(victory: bool) -> void:
+	if RunData.is_sandbox_mode():
+		var sandbox_message: String = "Sandbox enemy defeated. Press R to restart or ESC to return."
+		if not victory:
+			sandbox_message = "Sandbox fight ended. Press R to restart or ESC to return."
+		_enter_sandbox_result_state(sandbox_message)
+		return
+
+	if victory and player_ship and is_instance_valid(player_ship):
+		var end_combat_heal: int = PlayerData.get_module_effect_total("end_of_combat_heal")
+		if end_combat_heal > 0 and player_ship.health > 0:
+			player_ship.repair(end_combat_heal)
+			log_message("Modules restore %d HP after combat." % end_combat_heal)
+
 	PlayerData.sync_ship_state(player_ship.health, player_ship.max_health)
+
 	SaveManager.clear_save()
 
 	var result_scene = load("res://scenes/ResultScreen.tscn").instantiate()
@@ -725,6 +789,18 @@ func end_battle(victory: bool) -> void:
 	get_tree().root.add_child(result_scene)
 	get_tree().current_scene.queue_free()
 	get_tree().current_scene = result_scene
+
+func _save_intermission_state() -> void:
+	SaveManager.save_pre_battle({
+		"version": 4,
+		"scene": "intermission",
+		"player": PlayerData.to_save_dict(),
+		"battle": {
+			"current_encounter": {},
+			"remaining_encounters": encounter_queue.duplicate(true),
+			"plunder_index": plunder_screen.plunder_index
+		}
+	})
 
 func log_message(msg: String) -> void:
 	var label = Label.new()
@@ -760,19 +836,29 @@ func update_enemy_name_label() -> void:
 
 func update_enemy_hp_label() -> void:
 	for slot in ["left", "center", "right"]:
-		var label: Label = enemy_hp_labels.get(slot)
+		var container: Control = enemy_vitals_containers.get(slot)
+		var hp_bar: ProgressBar = enemy_hp_bars.get(slot)
+		var hp_text: Label = enemy_hp_text_labels.get(slot)
+		var block_panel: PanelContainer = enemy_block_panels.get(slot)
+		var block_text: Label = enemy_block_labels.get(slot)
 		var enemy = enemies_by_slot[slot]
 
-		if label == null:
+		if container == null or hp_bar == null or hp_text == null or block_panel == null or block_text == null:
 			continue
 
 		if enemy and is_instance_valid(enemy):
-			label.text = "%d / %d" % [enemy.health, enemy.max_health]
-			label.show()
-			_position_label_for_enemy(label, enemy, 4.0)
+			hp_bar.max_value = max(enemy.max_health, 1)
+			hp_bar.value = clampi(enemy.health, 0, enemy.max_health)
+			hp_text.text = "%d / %d" % [enemy.health, enemy.max_health]
+			block_text.text = str(enemy.block)
+			block_panel.visible = enemy.block > 0
+			container.show()
+			_position_label_for_enemy(container, enemy, 4.0)
 		else:
-			label.text = ""
-			label.hide()
+			hp_text.text = ""
+			block_text.text = ""
+			block_panel.visible = false
+			container.hide()
 
 func update_enemy_intent_label() -> void:
 	for slot in ["left", "center", "right"]:
@@ -809,6 +895,10 @@ func _position_label_for_enemy(label: Control, enemy: Node, y_offset: float) -> 
 		return
 
 	var label_width := 200.0
+	if label.custom_minimum_size.x > 0.0:
+		label_width = label.custom_minimum_size.x
+	elif label.size.x > 0.0:
+		label_width = label.size.x
 	label.size.x = label_width
 
 	var center_x: float = enemy.global_position.x
@@ -824,18 +914,18 @@ func _position_label_for_enemy(label: Control, enemy: Node, y_offset: float) -> 
 	label.position = Vector2(center_x - label_width / 2.0, anchor_y + y_offset)
 
 func _setup_enemy_slot_labels() -> void:
-	enemy_hp_labels["center"] = enemy_hp_label
+	_cache_enemy_vitals("center", enemy_vitals)
 	enemy_intent_labels["center"] = enemy_intent_label
 
-	var left_hp: Label = enemy_hp_label.duplicate()
-	left_hp.name = "EnemyHPLabelLeft"
-	$BattleUI.add_child(left_hp)
-	enemy_hp_labels["left"] = left_hp
+	var left_vitals: HBoxContainer = enemy_vitals.duplicate()
+	left_vitals.name = "EnemyVitalsLeft"
+	$BattleUI.add_child(left_vitals)
+	_cache_enemy_vitals("left", left_vitals)
 
-	var right_hp: Label = enemy_hp_label.duplicate()
-	right_hp.name = "EnemyHPLabelRight"
-	$BattleUI.add_child(right_hp)
-	enemy_hp_labels["right"] = right_hp
+	var right_vitals: HBoxContainer = enemy_vitals.duplicate()
+	right_vitals.name = "EnemyVitalsRight"
+	$BattleUI.add_child(right_vitals)
+	_cache_enemy_vitals("right", right_vitals)
 
 	var left_intent: Label = enemy_intent_label.duplicate()
 	left_intent.name = "EnemyIntentLabelLeft"
@@ -846,6 +936,25 @@ func _setup_enemy_slot_labels() -> void:
 	right_intent.name = "EnemyIntentLabelRight"
 	$BattleUI.add_child(right_intent)
 	enemy_intent_labels["right"] = right_intent
+
+func _cache_enemy_vitals(slot: String, vitals: HBoxContainer) -> void:
+	enemy_vitals_containers[slot] = vitals
+	enemy_hp_bars[slot] = vitals.get_node("EnemyHPBar")
+	enemy_hp_text_labels[slot] = vitals.get_node("EnemyHPBar/EnemyHPText")
+	enemy_block_panels[slot] = vitals.get_node("EnemyBlockPanel")
+	enemy_block_labels[slot] = vitals.get_node("EnemyBlockPanel/EnemyBlockLabel")
+
+func _activate_enemy_prepared_block() -> void:
+	for slot in ["left", "center", "right"]:
+		var enemy = enemies_by_slot[slot]
+		if enemy and is_instance_valid(enemy) and enemy.has_method("activate_prepared_block"):
+			enemy.activate_prepared_block()
+
+func _clear_enemy_active_block() -> void:
+	for slot in ["left", "center", "right"]:
+		var enemy = enemies_by_slot[slot]
+		if enemy and is_instance_valid(enemy) and enemy.has_method("clear_active_block"):
+			enemy.clear_active_block()
 
 func _update_enemy_slot_labels_only() -> void:
 	update_enemy_hp_label()
@@ -874,15 +983,29 @@ func _apply_player_state_to_ship() -> void:
 	PlayerData.sync_ship_state(player_ship.health, player_ship.max_health)
 
 func _setup_new_battle_sequence() -> void:
-	encounter_queue = EnemyRunConfig.get_default_run_order()
+	encounter_queue.clear()
 	plunder_screen.plunder_index = 0
-	waiting_for_tutorial_start = true
+	waiting_for_tutorial_start = false
 	_store_current_hand_back_into_deck()
-	_prepare_empty_tutorial_screen()
-	_show_tutorial(
-		"Welcome",
-		"Welcome aboard.\n\nWe'll use a few short drills before the real fight."
-	)
+	_set_sandbox_result_pending(false)
+
+	if RunData.is_sandbox_mode():
+		_setup_sandbox_battle_sequence()
+		return
+
+	if RunData.is_drill_mode():
+		_setup_selected_drill()
+		return
+
+	tutorial_active = false
+	tutorial_step = TUT_DONE
+	tutorial_pause_after_fire = false
+	tutorial_waiting_for_enemy_turn_result = false
+	tutorial_plunder_demo_active = false
+
+	encounter_queue = EnemyRunConfig.get_default_run_order()
+	spawn_enemy()
+	DeckManager.resolve_fire_phase()
 
 func _setup_restored_battle_sequence(save_state: Dictionary) -> void:
 	var battle_state: Dictionary = Dictionary(save_state.get("battle", {}))
@@ -899,12 +1022,56 @@ func _setup_restored_battle_sequence(save_state: Dictionary) -> void:
 	else:
 		spawn_enemy(saved_encounter)
 
+func _setup_selected_drill() -> void:
+	tutorial_active = true
+	tutorial_pause_after_fire = false
+	tutorial_waiting_for_enemy_turn_result = false
+	tutorial_plunder_demo_active = false
+	_prepare_empty_tutorial_screen()
+
+	match int(RunData.selected_drill):
+		1:
+			_force_tutorial_hand(["cannon_shot", "cannon_shot", "crate", "crate", "crate"])
+			spawn_enemy(TUTORIAL_DRILL_1_ENCOUNTER)
+			tutorial_step = TUT_DRILL_1_PLAY
+			_show_tutorial("Drill 1", "Load both Cannon Shots, then click Fire.")
+		2:
+			_force_tutorial_hand(["cannon_shot", "cannon_shot", "cannon_shot", "crate", "crate"])
+			spawn_enemy(TUTORIAL_DRILL_2_ENCOUNTER)
+			tutorial_step = TUT_DRILL_2_PLAY
+			_show_tutorial("Drill 2", "You have 3 queue cards, but only 2 cannon slots. Load two Cannon Shots and sink the fish.")
+		3:
+			_force_tutorial_hand(["cannon_shot", "loaded_shot", "crate", "crate", "crate"])
+			spawn_enemy(TUTORIAL_DRILL_3_ENCOUNTER)
+			tutorial_step = TUT_DRILL_3_WRONG_ORDER
+			_show_tutorial("Drill 3", "Order matters. Try Loaded Shot first, then Cannon Shot.")
+		4:
+			_force_tutorial_hand(["brace", "brace", "crate", "crate", "crate"])
+			spawn_enemy(TUTORIAL_DRILL_4_ENCOUNTER)
+			_prepare_current_enemy_intent(6)
+			tutorial_step = TUT_DRILL_4_BRACE
+			_show_tutorial("Drill 4", "This fish attacks for 6. Play Brace before it hits.")
+		5:
+			_force_tutorial_hand(["cannon_shot", "cannon_shot", "crate", "crate", "crate"])
+			spawn_enemy(TUTORIAL_DRILL_5_ENCOUNTER)
+			tutorial_step = TUT_DRILL_5_PLAY
+			_show_tutorial("Drill 5", "When the center enemy sinks, the formation shifts. Load both Cannon Shots and watch the line collapse.")
+		_:
+			_force_tutorial_hand(["cannon_shot", "cannon_shot", "crate", "crate", "crate"])
+			spawn_enemy(TUTORIAL_DRILL_1_ENCOUNTER)
+			tutorial_step = TUT_DRILL_1_PLAY
+			_show_tutorial("Drill 1", "Load both Cannon Shots, then click Fire.")
+
 func _save_pre_battle_state() -> void:
+	if RunData.is_drill_mode() or RunData.is_sandbox_mode():
+		return
+
 	if current_encounter.is_empty():
 		return
 
 	SaveManager.save_pre_battle({
 		"version": 3,
+		"scene": "battle",
 		"player": PlayerData.to_save_dict(),
 		"battle": {
 			"current_encounter": current_encounter.duplicate(true),
@@ -1177,3 +1344,49 @@ func _count_cards_in_hand(card_id: String) -> int:
 			if String(card.get_meta("card_id", "")) == card_id:
 				total += 1
 	return total
+
+func _setup_sandbox_battle_sequence() -> void:
+	tutorial_active = false
+	tutorial_step = TUT_DONE
+	tutorial_pause_after_fire = false
+	tutorial_waiting_for_enemy_turn_result = false
+	tutorial_plunder_demo_active = false
+
+	var sandbox_encounter: Dictionary = RunData.get_sandbox_encounter()
+	if sandbox_encounter.is_empty():
+		push_error("BattleScene: sandbox encounter missing.")
+		_return_to_sandbox_menu()
+		return
+
+	spawn_enemy(sandbox_encounter)
+	DeckManager.resolve_fire_phase()
+
+func _restart_sandbox_fight() -> void:
+	RunData.selected_captain = DEFAULT_SANDBOX_CAPTAIN_ID
+	PlayerData.apply_captain_starting_deck(DEFAULT_SANDBOX_CAPTAIN_ID)
+	get_tree().change_scene_to_file("res://scenes/BattleScene.tscn")
+
+func _return_to_sandbox_menu() -> void:
+	get_tree().change_scene_to_file(SANDBOX_MENU_SCENE)
+
+func _enter_sandbox_result_state(message: String) -> void:
+	_set_sandbox_result_pending(true)
+	tutorial_title.text = "Sandbox Complete"
+	tutorial_body.text = message
+	tutorial_button.hide()
+	tutorial_overlay.show()
+	log_message(message)
+	update_hud()
+
+func _set_sandbox_result_pending(active: bool) -> void:
+	sandbox_result_pending = active
+	fire_button.disabled = active
+	unload_button.disabled = active
+	if not active:
+		tutorial_button.show()
+		tutorial_overlay.hide()
+
+func _mark_input_handled() -> void:
+	var viewport: Viewport = get_viewport()
+	if viewport != null:
+		viewport.set_input_as_handled()
