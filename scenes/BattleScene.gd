@@ -6,17 +6,20 @@ const TurnEffects = preload("res://globals/TurnEffects.gd")
 const INTERMISSION_SCENE := "res://scenes/IntermissionScreen.tscn"
 const SANDBOX_MENU_SCENE := "res://scenes/SandboxMenu.tscn"
 const DEFAULT_SANDBOX_CAPTAIN_ID := "captain_1"
+const SANDBOX_PAGE_SIZE := 6
 
 const DESIGN_CANVAS_SIZE := Vector2(3840.0, 2160.0)
-const ENEMY_LEFT_POS := Vector2(420.0, 340.0)
-const ENEMY_CENTER_POS := Vector2(800.0, 400.0)
-const ENEMY_RIGHT_POS := Vector2(1180.0, 340.0)
+const ENEMY_LEFT_POS := Vector2(1540.0, 340.0)
+const ENEMY_CENTER_POS := Vector2(1920.0, 400.0)
+const ENEMY_RIGHT_POS := Vector2(2300.0, 340.0)
 const ENEMY_CENTER_SCALE := Vector2.ONE
 const ENEMY_SIDE_SCALE := Vector2(0.7, 0.7)
 const PILE_LABEL_FONT_SIZE := 28
 const DECK_LABEL_SIZE := Vector2(240.0, 44.0)
 const DISCARD_LABEL_SIZE := Vector2(280.0, 44.0)
 const ROTATE_STEP_DELAY := 0.45
+const BATTLE_FADE_IN_DURATION := 0.65
+const ENEMY_FADE_IN_DURATION := 0.35
 
 const TUT_WELCOME := 0
 const TUT_DRILL_1_PROMPT := 1
@@ -102,7 +105,6 @@ const TUTORIAL_DRILL_5_ENCOUNTER := {
 @onready var player_ship = $BattleWorld/ShipContainer/PlayerShip
 @onready var hp_label = $HUD/PanelContainer/VBoxContainer/ShipHPLabel
 @onready var block_label = $HUD/PanelContainer/VBoxContainer/BlockLabel
-@onready var queue_label = $HUD/PanelContainer/VBoxContainer/QueueLabel
 @onready var enemy_intent_label = $BattleUI/EnemyIntentLabel
 @onready var enemy_vitals = $BattleUI/EnemyVitals
 @onready var fire_button = $BattleUI/ButtonsContainer/FireButton
@@ -111,7 +113,6 @@ const TUTORIAL_DRILL_5_ENCOUNTER := {
 @onready var enemy_name_label = $BattleUI/EnemyNameLabel
 @onready var gold_label = $HUD/PanelContainer/VBoxContainer/GoldLabel
 @onready var commands_label = $HUD/PanelContainer/VBoxContainer/CommandsLabel
-@onready var module_slots_label = $HUD/PanelContainer/VBoxContainer/ModuleSlotsLabel
 @onready var tutorial_overlay = $TutorialOverlay
 @onready var tutorial_title = $TutorialOverlay/PanelContainer/VBoxContainer/TitleLabel
 @onready var tutorial_body = $TutorialOverlay/PanelContainer/VBoxContainer/BodyLabel
@@ -120,6 +121,10 @@ const TUTORIAL_DRILL_5_ENCOUNTER := {
 @onready var cannon_load_slots: Control = $BattleUI/CannonLoadSlots
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		update_enemy_name_label()
+		return
+
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_TAB:
 			if ship_preview and ship_preview.has_method("toggle_preview"):
@@ -140,6 +145,16 @@ func _input(event: InputEvent) -> void:
 				_return_to_sandbox_menu()
 				return
 
+			if _is_sandbox_next_enemy_event(event) and not preview_visible:
+				_mark_input_handled()
+				_cycle_sandbox_enemy(1)
+				return
+
+			if _is_sandbox_previous_enemy_event(event) and not preview_visible:
+				_mark_input_handled()
+				_cycle_sandbox_enemy(-1)
+				return
+
 var encounter_queue: Array = []
 var current_encounter: Dictionary = {}
 var current_enemy_id: String = ""
@@ -156,12 +171,18 @@ var enemy_hp_text_labels := {}
 var enemy_block_panels := {}
 var enemy_block_labels := {}
 var enemy_intent_labels := {}
+var enemy_scene_cache: Dictionary = {}
 
 var resolving_player_fire: bool = false
 var pending_enemy_defeat_flow: bool = false
 var formation_animating: bool = false
 var waiting_for_tutorial_start: bool = false
 var sandbox_result_pending: bool = false
+var sandbox_info_label: Label = null
+var battle_intro_layer: CanvasLayer = null
+var battle_intro_overlay: ColorRect = null
+var battle_intro_fading: bool = false
+var pending_enemy_fade_ins: Array[Dictionary] = []
 
 var tutorial_active: bool = false
 var tutorial_step: int = TUT_WELCOME
@@ -170,6 +191,7 @@ var tutorial_waiting_for_enemy_turn_result: bool = false
 var tutorial_plunder_demo_active: bool = false
 
 func _ready() -> void:
+	battle_intro_fading = true
 	player_ship.defeated.connect(_on_player_defeated)
 	plunder_screen.reward_taken.connect(_on_plunder_finished)
 	tutorial_button.pressed.connect(_on_tutorial_continue_pressed)
@@ -210,19 +232,17 @@ func _ready() -> void:
 	start_player_turn()
 	update_hud()
 	_save_pre_battle_state()
+	_play_battle_intro_fade()
 	log_message("BattleScene ready!")
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_layout_aspect_safe_regions()
 
-func _process(_delta: float) -> void:
-	update_enemy_name_label()
-
 func show_battle_ui() -> void:
 	$BattleUI.show()
 	battle_world.show()
-	$DebugCanvas.show()
+	$DebugCanvas.hide()
 	$HUD.show()
 
 func hide_battle_ui() -> void:
@@ -263,25 +283,9 @@ func update_hud() -> void:
 		block_label.text = "Block: %d" % player_ship.block
 		gold_label.text = "Gold: %d" % PlayerData.gold
 		commands_label.text = "Commands: %d / %d" % [TurnManager.get_current_commands(), TurnManager.get_max_commands()]
-		module_slots_label.text = "Modules: %d / %d" % [PlayerData.get_active_modules().size(), player_ship.max_module_slots]
 
-	var queue_texts: Array[String] = []
-	var preview_steps: Array = TurnManager.get_queue_preview(get_current_enemy())
-	TurnManager.refresh_cannon_slot_damage_previews(get_current_enemy())
-
-	for step in preview_steps:
-		var card_data: Dictionary = step["card"]
-		var card_type: String = String(card_data.get("type", "")).to_lower()
-
-		if card_type == "attack":
-			var name: String = str(card_data.get("name", "Card"))
-			var shown_damage: int = int(step.get("damage_total", 0))
-			queue_texts.append("%s (%d dmg)" % [name, shown_damage])
-
-	if queue_texts.is_empty():
-		queue_label.text = "Queued Attacks: none"
-	else:
-		queue_label.text = "Queued Attacks:\n" + "\n".join(queue_texts)
+	var preview_steps: Array = TurnManager.get_queue_preview(current_enemy)
+	TurnManager.refresh_cannon_slot_damage_previews(current_enemy, [], preview_steps)
 
 	update_enemy_hp_label()
 	update_enemy_intent_label()
@@ -399,7 +403,7 @@ func _spawn_enemy_in_slot(enemy_id: String, slot: String, health_override: int =
 		push_error("BattleScene: Missing scene path for enemy id %s" % enemy_id)
 		return null
 
-	var enemy_scene: PackedScene = load(scene_path)
+	var enemy_scene: PackedScene = _get_enemy_scene(scene_path)
 	if enemy_scene == null:
 		push_error("BattleScene: failed to load enemy scene %s" % scene_path)
 		return null
@@ -418,7 +422,80 @@ func _spawn_enemy_in_slot(enemy_id: String, slot: String, health_override: int =
 
 	enemy.defeated.connect(_on_enemy_defeated.bind(enemy), CONNECT_ONE_SHOT)
 	enemies_by_slot[slot] = enemy
+	_prepare_enemy_fade_in(enemy)
 	return enemy
+
+func _get_enemy_scene(scene_path: String) -> PackedScene:
+	if enemy_scene_cache.has(scene_path):
+		return enemy_scene_cache[scene_path] as PackedScene
+
+	var enemy_scene: PackedScene = load(scene_path) as PackedScene
+	if enemy_scene != null:
+		enemy_scene_cache[scene_path] = enemy_scene
+	return enemy_scene
+
+func _prepare_enemy_fade_in(enemy: Node) -> void:
+	var enemy_visual := enemy as CanvasItem
+	if enemy_visual == null:
+		return
+
+	var target_modulate: Color = enemy_visual.modulate
+	enemy_visual.modulate = Color(target_modulate.r, target_modulate.g, target_modulate.b, 0.0)
+
+	if battle_intro_fading:
+		pending_enemy_fade_ins.append({
+			"visual": enemy_visual,
+			"target_modulate": target_modulate
+		})
+		return
+
+	_fade_enemy_visual_in(enemy_visual, target_modulate)
+
+func _fade_enemy_visual_in(enemy_visual: CanvasItem, target_modulate: Color) -> void:
+	var tween: Tween = create_tween()
+	tween.set_trans(Tween.TRANS_SINE)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(enemy_visual, "modulate", target_modulate, ENEMY_FADE_IN_DURATION)
+
+func _play_battle_intro_fade() -> void:
+	battle_intro_layer = CanvasLayer.new()
+	battle_intro_layer.name = "BattleIntroFadeLayer"
+	battle_intro_layer.layer = 100
+	add_child(battle_intro_layer)
+
+	battle_intro_overlay = ColorRect.new()
+	battle_intro_overlay.name = "BattleIntroFade"
+	battle_intro_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	battle_intro_overlay.color = Color.BLACK
+	battle_intro_overlay.anchor_right = 1.0
+	battle_intro_overlay.anchor_bottom = 1.0
+	battle_intro_overlay.offset_left = 0.0
+	battle_intro_overlay.offset_top = 0.0
+	battle_intro_overlay.offset_right = 0.0
+	battle_intro_overlay.offset_bottom = 0.0
+	battle_intro_layer.add_child(battle_intro_overlay)
+
+	var tween: Tween = create_tween()
+	tween.set_trans(Tween.TRANS_SINE)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(battle_intro_overlay, "color:a", 0.0, BATTLE_FADE_IN_DURATION)
+	tween.tween_callback(Callable(self, "_on_battle_intro_fade_finished"))
+
+func _on_battle_intro_fade_finished() -> void:
+	battle_intro_fading = false
+	if battle_intro_layer != null and is_instance_valid(battle_intro_layer):
+		battle_intro_layer.queue_free()
+	battle_intro_layer = null
+	battle_intro_overlay = null
+	_play_pending_enemy_fade_ins()
+
+func _play_pending_enemy_fade_ins() -> void:
+	for fade_entry in pending_enemy_fade_ins:
+		var enemy_visual: CanvasItem = fade_entry.get("visual") as CanvasItem
+		if enemy_visual != null and is_instance_valid(enemy_visual):
+			var target_modulate: Color = fade_entry.get("target_modulate", Color.WHITE)
+			_fade_enemy_visual_in(enemy_visual, target_modulate)
+	pending_enemy_fade_ins.clear()
 
 func can_summon_enemy_to_side_lane(enemy_id: String, max_alive: int = 0) -> bool:
 	_clean_enemy_refs()
@@ -933,15 +1010,17 @@ func log_message(msg: String) -> void:
 		$DebugCanvas/DebugLogPanel/ScrollContainer.get_v_scroll_bar().max_value
 	)
 
-func is_mouse_over_enemy_body() -> bool:
-	current_enemy = get_current_enemy()
-	if not current_enemy:
+func is_mouse_over_enemy_body(enemy: Node = null) -> bool:
+	var inspected_enemy: Node = enemy
+	if inspected_enemy == null:
+		inspected_enemy = get_current_enemy()
+	if not inspected_enemy:
 		return false
 
-	if not current_enemy.has_node("BodyRect"):
+	if not inspected_enemy.has_node("BodyRect"):
 		return false
 
-	var body = current_enemy.get_node("BodyRect")
+	var body = inspected_enemy.get_node("BodyRect")
 	if body is Control:
 		return (body as Control).get_global_rect().has_point(get_global_mouse_position())
 
@@ -950,7 +1029,7 @@ func is_mouse_over_enemy_body() -> bool:
 func update_enemy_name_label() -> void:
 	current_enemy = get_current_enemy()
 
-	if current_enemy and is_instance_valid(current_enemy) and is_mouse_over_enemy_body():
+	if current_enemy and is_instance_valid(current_enemy) and is_mouse_over_enemy_body(current_enemy):
 		enemy_name_label.text = current_enemy.enemy_name
 		enemy_name_label.show()
 		_position_label_for_enemy(enemy_name_label, current_enemy, 40.0)
@@ -1064,6 +1143,21 @@ func _setup_enemy_slot_labels() -> void:
 	right_intent.name = "EnemyIntentLabelRight"
 	$BattleUI.add_child(right_intent)
 	enemy_intent_labels["right"] = right_intent
+
+func _setup_sandbox_info_label() -> void:
+	if sandbox_info_label != null:
+		return
+
+	sandbox_info_label = Label.new()
+	sandbox_info_label.name = "SandboxInfoLabel"
+	sandbox_info_label.position = Vector2(1420.0, 72.0)
+	sandbox_info_label.size = Vector2(420.0, 42.0)
+	sandbox_info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	sandbox_info_label.add_theme_font_size_override("font_size", 24)
+	sandbox_info_label.add_theme_constant_override("outline_size", 4)
+	sandbox_info_label.add_theme_color_override("font_color", Color(1.0, 0.91, 0.62, 1.0))
+	sandbox_info_label.add_theme_color_override("font_outline_color", Color(0.05, 0.03, 0.01, 1.0))
+	$BattleUI.add_child(sandbox_info_label)
 
 func _cache_enemy_vitals(slot: String, vitals: HBoxContainer) -> void:
 	enemy_vitals_containers[slot] = vitals
@@ -1486,6 +1580,8 @@ func _setup_sandbox_battle_sequence() -> void:
 		_return_to_sandbox_menu()
 		return
 
+	_setup_sandbox_info_label()
+	_update_sandbox_info_label()
 	spawn_enemy(sandbox_encounter)
 	DeckManager.resolve_fire_phase()
 
@@ -1496,6 +1592,60 @@ func _restart_sandbox_fight() -> void:
 
 func _return_to_sandbox_menu() -> void:
 	get_tree().change_scene_to_file(SANDBOX_MENU_SCENE)
+
+func _cycle_sandbox_enemy(direction: int) -> void:
+	var entries: Array[Dictionary] = EnemyList.get_sandbox_entries()
+	if entries.is_empty():
+		return
+
+	var next_index: int = posmod(RunData.sandbox_enemy_index + direction, entries.size())
+	var entry: Dictionary = entries[next_index]
+	var enemies: Dictionary = Dictionary(entry.get("enemies", {}))
+	if enemies.is_empty():
+		enemies = {
+			"center": String(entry.get("id", ""))
+		}
+
+	var encounter: Dictionary = {
+		"wave_name": String(entry.get("name", "Sandbox Enemy")),
+		"enemies": enemies.duplicate(true)
+	}
+
+	var next_page: int = int(floor(float(next_index) / float(SANDBOX_PAGE_SIZE)))
+	RunData.selected_captain = DEFAULT_SANDBOX_CAPTAIN_ID
+	PlayerData.apply_captain_starting_deck(DEFAULT_SANDBOX_CAPTAIN_ID)
+	RunData.start_sandbox_encounter(encounter, next_index, next_page)
+	get_tree().change_scene_to_file("res://scenes/BattleScene.tscn")
+
+func _update_sandbox_info_label() -> void:
+	if not RunData.is_sandbox_mode():
+		if sandbox_info_label != null:
+			sandbox_info_label.hide()
+		return
+
+	_setup_sandbox_info_label()
+	var entries: Array[Dictionary] = EnemyList.get_sandbox_entries()
+	if entries.is_empty():
+		sandbox_info_label.text = "Testing: none"
+		sandbox_info_label.show()
+		return
+
+	var entry_index: int = clampi(RunData.sandbox_enemy_index, 0, entries.size() - 1)
+	var entry: Dictionary = entries[entry_index]
+	sandbox_info_label.text = "Testing: %s %d / %d" % [
+		String(entry.get("name", "Enemy")),
+		entry_index + 1,
+		entries.size()
+	]
+	sandbox_info_label.show()
+
+func _is_sandbox_next_enemy_event(event: InputEventKey) -> bool:
+	return event.keycode == KEY_PLUS or event.keycode == KEY_KP_ADD or (
+		event.keycode == KEY_EQUAL and event.shift_pressed
+	)
+
+func _is_sandbox_previous_enemy_event(event: InputEventKey) -> bool:
+	return event.keycode == KEY_MINUS or event.keycode == KEY_KP_SUBTRACT
 
 func _enter_sandbox_result_state(message: String) -> void:
 	_set_sandbox_result_pending(true)

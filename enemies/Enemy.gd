@@ -5,6 +5,8 @@ const EnemyActions = preload("res://globals/EnemyActions.gd")
 
 signal defeated
 
+static var texture_cache: Dictionary = {}
+
 var enemy_id: String = ""
 var enemy_name: String = "Enemy"
 var max_health: int = 10
@@ -267,7 +269,11 @@ func _configure_body_visual(body_color: Color, texture_path: String) -> void:
 		color_rect.color = body_color
 		base_body_color = color_rect.color
 	elif body is TextureRect and texture_path != "":
-		var texture := load(texture_path)
+		var texture: Resource = texture_cache.get(texture_path)
+		if texture == null:
+			texture = load(texture_path)
+			if texture is Texture2D:
+				texture_cache[texture_path] = texture
 		if texture is Texture2D:
 			(body as TextureRect).texture = texture
 

@@ -1,5 +1,7 @@
 extends Button
 
+static var texture_cache: Dictionary = {}
+
 var card_name: String = ""
 var art_path: String = ""
 var frame_path: String = ""
@@ -35,8 +37,12 @@ var hand_base_z_index: int = 0
 var is_hovered_in_hand: bool = false
 var hover_tween: Tween = null
 var source_cannon_slot: Control = null
+var drag_cannon_slots: Array[Control] = []
+var drag_module_slots: Array[Control] = []
+var drag_slot_radii: Dictionary = {}
 
 func _ready() -> void:
+	set_process(dragging or is_selected)
 	home_position = position
 	hand_base_position = position
 
@@ -57,12 +63,12 @@ func update_card() -> void:
 	$CardFrame/DescLabel.visible = not hide_text
 
 	if art_path != "":
-		$CardFrame/ArtRect.texture = load(art_path)
+		$CardFrame/ArtRect.texture = _load_texture(art_path)
 	else:
 		$CardFrame/ArtRect.texture = null
 
 	if frame_path != "":
-		$CardFrame/FrameRect.texture = load(frame_path)
+		$CardFrame/FrameRect.texture = _load_texture(frame_path)
 
 func deselect() -> void:
 	is_selected = false
@@ -93,10 +99,13 @@ func _gui_input(event) -> void:
 		is_selected = true
 		modulate = Color(1, 1, 0.6)
 		drag_offset = get_global_mouse_position() - global_position
+		set_process(true)
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		if dragging:
 			stop_drag()
+		else:
+			set_process(false)
 
 func _process(_delta: float) -> void:
 	if is_selected and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
@@ -105,6 +114,8 @@ func _process(_delta: float) -> void:
 		drag_card()
 	elif dragging:
 		stop_drag()
+	else:
+		set_process(false)
 
 func start_drag() -> void:
 	dragging = true
@@ -126,6 +137,7 @@ func start_drag() -> void:
 	rotation = 0.0
 	drag_base_scale = hand_base_scale
 	scale = drag_base_scale
+	_cache_drag_targets()
 	global_position = _get_drag_position_for_mouse(get_viewport().get_mouse_position())
 	z_index = 2000
 
@@ -133,6 +145,7 @@ func begin_drag_from_cannon_slot(source_slot: Control) -> void:
 	source_cannon_slot = source_slot
 	dragging = true
 	is_selected = true
+	set_process(true)
 	is_hovered_in_hand = false
 	_kill_hover_tween()
 
@@ -143,6 +156,10 @@ func begin_drag_from_cannon_slot(source_slot: Control) -> void:
 		scene = DeckManager.battle_scene
 
 	if scene == null:
+		dragging = false
+		is_selected = false
+		set_process(false)
+		_clear_drag_targets()
 		return
 
 	if scene.has_node("BattleUI/CardHand"):
@@ -165,9 +182,12 @@ func begin_drag_from_cannon_slot(source_slot: Control) -> void:
 	rotation = 0.0
 	drag_base_scale = Vector2.ONE
 	scale = drag_base_scale
+	_cache_drag_targets()
 	if viewport != null:
 		global_position = _get_drag_position_for_mouse(viewport.get_mouse_position())
 	z_index = 2000
+	set_process(true)
+	drag_card()
 
 func drag_card() -> void:
 	var mouse_position: Vector2 = get_viewport().get_mouse_position()
@@ -186,6 +206,7 @@ func drag_card() -> void:
 
 func stop_drag() -> void:
 	dragging = false
+	set_process(false)
 
 	if hover_slot and hover_slot.has_method("load_card"):
 		if not _can_play_for_tutorial():
@@ -208,12 +229,14 @@ func stop_drag() -> void:
 				hover_slot.call("unhighlight")
 			hover_slot = null
 			source_cannon_slot = null
+			_clear_drag_targets()
 			return
 
 		return_to_hand()
 		if hover_slot and hover_slot.has_method("unhighlight"):
 			hover_slot.call("unhighlight")
 		hover_slot = null
+		_clear_drag_targets()
 		return
 
 	if source_cannon_slot != null:
@@ -256,6 +279,7 @@ func stop_drag() -> void:
 	if hover_slot and hover_slot.has_method("unhighlight"):
 		hover_slot.call("unhighlight")
 	hover_slot = null
+	_clear_drag_targets()
 
 func play_card() -> void:
 	if not _can_play_for_tutorial():
@@ -303,6 +327,7 @@ func return_to_hand() -> void:
 	is_selected = false
 	is_hovered_in_hand = false
 	source_cannon_slot = null
+	_clear_drag_targets()
 
 	if original_parent and original_parent.has_method("request_layout"):
 		if not DeckManager.hand.has(self):
@@ -423,11 +448,7 @@ func _get_nearest_cannon_slot(mouse_position: Vector2) -> Control:
 	var nearest_slot: Control = null
 	var nearest_distance: float = INF
 
-	for node in get_tree().get_nodes_in_group("CannonLoadSlot"):
-		if not (node is Control):
-			continue
-
-		var slot_node: Control = node as Control
+	for slot_node in _get_drag_cannon_slots():
 		if not _can_use_cannon_slot_for_drag(slot_node):
 			continue
 
@@ -445,14 +466,13 @@ func _get_nearest_cannon_slot(mouse_position: Vector2) -> Control:
 	return nearest_slot
 
 func _get_cannon_slot_radius(slot: Control) -> float:
+	if drag_slot_radii.has(slot):
+		return float(drag_slot_radii[slot])
+
 	var radius: float = CANNON_SLOT_MAGNET_RADIUS
 	var slot_center: Vector2 = _get_control_center(slot)
 
-	for node in get_tree().get_nodes_in_group("CannonLoadSlot"):
-		if not (node is Control):
-			continue
-
-		var other_slot: Control = node as Control
+	for other_slot in _get_drag_cannon_slots():
 		if other_slot == slot or not _can_use_cannon_slot_for_drag(other_slot):
 			continue
 
@@ -485,11 +505,7 @@ func _get_drag_position_for_mouse(mouse_position: Vector2) -> Vector2:
 func _find_hover_slot() -> Control:
 	var mouse_position: Vector2 = get_viewport().get_mouse_position()
 
-	for node in get_tree().get_nodes_in_group("CannonLoadSlot"):
-		if not (node is Control):
-			continue
-
-		var slot_node: Control = node as Control
+	for slot_node in _get_drag_cannon_slots():
 		if not _can_use_cannon_slot_for_drag(slot_node):
 			continue
 		if not Rect2(slot_node.global_position, slot_node.size).has_point(mouse_position):
@@ -497,12 +513,62 @@ func _find_hover_slot() -> Control:
 
 		return slot_node
 
-	for node in get_tree().get_nodes_in_group("ModuleSlot"):
-		if not (node is Control):
-			continue
-
-		var legacy_slot_node: Control = node as Control
+	for legacy_slot_node in _get_drag_module_slots():
 		if Rect2(legacy_slot_node.global_position, legacy_slot_node.size).has_point(mouse_position):
 			return legacy_slot_node
 
 	return null
+
+func _cache_drag_targets() -> void:
+	drag_cannon_slots.clear()
+	drag_module_slots.clear()
+	drag_slot_radii.clear()
+
+	for node in get_tree().get_nodes_in_group("CannonLoadSlot"):
+		if node is Control:
+			drag_cannon_slots.append(node as Control)
+
+	for node in get_tree().get_nodes_in_group("ModuleSlot"):
+		if node is Control:
+			drag_module_slots.append(node as Control)
+
+	for slot in drag_cannon_slots:
+		if not _can_use_cannon_slot_for_drag(slot):
+			continue
+		drag_slot_radii[slot] = _calculate_cannon_slot_radius(slot)
+
+func _clear_drag_targets() -> void:
+	drag_cannon_slots.clear()
+	drag_module_slots.clear()
+	drag_slot_radii.clear()
+
+func _get_drag_cannon_slots() -> Array[Control]:
+	if drag_cannon_slots.is_empty():
+		_cache_drag_targets()
+	return drag_cannon_slots
+
+func _get_drag_module_slots() -> Array[Control]:
+	if drag_module_slots.is_empty():
+		_cache_drag_targets()
+	return drag_module_slots
+
+func _calculate_cannon_slot_radius(slot: Control) -> float:
+	var radius: float = CANNON_SLOT_MAGNET_RADIUS
+	var slot_center: Vector2 = _get_control_center(slot)
+
+	for other_slot in drag_cannon_slots:
+		if other_slot == slot or not _can_use_cannon_slot_for_drag(other_slot):
+			continue
+
+		var half_distance: float = slot_center.distance_to(_get_control_center(other_slot)) * 0.5
+		radius = minf(radius, maxf(0.0, half_distance - CANNON_SLOT_MAGNET_GAP))
+
+	return radius
+
+func _load_texture(path: String) -> Texture2D:
+	var texture: Resource = texture_cache.get(path)
+	if texture == null:
+		texture = load(path)
+		if texture is Texture2D:
+			texture_cache[path] = texture
+	return texture as Texture2D

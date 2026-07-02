@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://f0ylxmx8u5s3"]
+[gd_scene load_steps=11 format=3 uid="uid://f0ylxmx8u5s3"]
 
 [ext_resource type="Script" uid="uid://o1556vowgy8r" path="res://scenes/BattleScene.gd" id="1_ltshs"]
 [ext_resource type="PackedScene" uid="uid://ciue2h6aklxj8" path="res://ship/PlayerShip.tscn" id="2_3mvhd"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://ct6186f53f3cn" path="res://scenes/PlunderScreen.tscn" id="4_28s16"]
 [ext_resource type="Script" uid="uid://bobjyhbbllmr5" path="res://ui/CardHand.gd" id="4_cardhand"]
 [ext_resource type="PackedScene" uid="uid://bk53cn0ay226c" path="res://scenes/ShipPreview.tscn" id="5_shippreview"]
+[ext_resource type="Texture2D" uid="uid://c4ijw1l4mv74c" path="res://assets/backgrounds/battle_deck_overlay.png" id="7_battledeck"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_enemy_hp_bg"]
 bg_color = Color(0.223529, 0.223529, 0.223529, 0.9)
@@ -33,6 +34,18 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_ltshs")
+
+[node name="BattleDeckBackground" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("7_battledeck")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="BattleWorld" type="Node2D" parent="."]
 
@@ -116,6 +129,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_cannonloads")
+debug_active_count_override = 2
 
 [node name="ButtonsContainer" type="VBoxContainer" parent="BattleUI"]
 custom_minimum_size = Vector2(250, 250)
@@ -241,6 +255,7 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 36
 
 [node name="DebugCanvas" type="CanvasLayer" parent="."]
+visible = false
 
 [node name="DebugLogPanel" type="Panel" parent="DebugCanvas"]
 clip_contents = true

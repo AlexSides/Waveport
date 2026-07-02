@@ -12,80 +12,76 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_intermission")
 
-[node name="Backdrop" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.0470588, 0.0862745, 0.129412, 1)
-
-[node name="Panel" type="Panel" parent="."]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -420.0
-offset_top = -210.0
-offset_right = 420.0
-offset_bottom = 210.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="CenterContainer" type="CenterContainer" parent="Panel"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="VBoxContainer" type="VBoxContainer" parent="Panel/CenterContainer"]
-custom_minimum_size = Vector2(700, 300)
-layout_mode = 2
-theme_override_constants/separation = 16
-alignment = 1
-
-[node name="TitleLabel" type="Label" parent="Panel/CenterContainer/VBoxContainer"]
-layout_mode = 2
+[node name="TitleLabel" type="Label" parent="."]
+layout_mode = 0
+offset_right = 900.0
+offset_bottom = 84.0
 theme_override_font_sizes/font_size = 64
-text = "Voyage Intermission"
+text = "Chart Your Course"
 horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="SummaryLabel" type="Label" parent="Panel/CenterContainer/VBoxContainer"]
-layout_mode = 2
+[node name="SummaryLabel" type="Label" parent="."]
+layout_mode = 0
+offset_right = 900.0
+offset_bottom = 48.0
 theme_override_font_sizes/font_size = 24
-text = "Ship | Hull | Gold | Cargo | Battles Ahead"
+text = "Ship | Hull | Gold | Cargo | Voyage"
 horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="StatusLabel" type="Label" parent="Panel/CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(680, 64)
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "Open Shipyard to manage modules, then sail on when ready."
+[node name="ProgressLabel" type="Label" parent="."]
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 110.0
+theme_override_font_sizes/font_size = 36
+text = "Sea Route: 1 / 4
+Voyage: 1 / 8"
 horizontal_alignment = 1
+vertical_alignment = 1
 autowrap_mode = 3
 
-[node name="ButtonsRow" type="HBoxContainer" parent="Panel/CenterContainer/VBoxContainer"]
-layout_mode = 2
-theme_override_constants/separation = 18
-alignment = 1
+[node name="StatusLabel" type="Label" parent="."]
+layout_mode = 0
+offset_right = 900.0
+offset_bottom = 80.0
+theme_override_font_sizes/font_size = 30
+text = "Select unknown waters to continue, or inspect the ship before sailing."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
 
-[node name="ShipyardButton" type="Button" parent="Panel/CenterContainer/VBoxContainer/ButtonsRow"]
-custom_minimum_size = Vector2(260, 72)
-layout_mode = 2
+[node name="InspectShipButton" type="Button" parent="."]
+layout_mode = 0
+offset_right = 320.0
+offset_bottom = 76.0
 theme_override_font_sizes/font_size = 32
-text = "Shipyard"
+text = "Inspect Ship"
 
-[node name="SailButton" type="Button" parent="Panel/CenterContainer/VBoxContainer/ButtonsRow"]
-custom_minimum_size = Vector2(260, 72)
-layout_mode = 2
-theme_override_font_sizes/font_size = 32
-text = "Next Battle"
+[node name="DestinationMarkerA" type="Button" parent="."]
+layout_mode = 0
+offset_right = 108.0
+offset_bottom = 108.0
+theme_override_font_sizes/font_size = 56
+text = "?"
+
+[node name="DestinationMarkerB" type="Button" parent="."]
+layout_mode = 0
+offset_right = 108.0
+offset_bottom = 108.0
+theme_override_font_sizes/font_size = 56
+text = "?"
 
 [node name="ShipPreview" parent="." instance=ExtResource("3_preview")]
 visible = false
 layout_mode = 1
+
+[node name="FadeOverlay" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.0352941, 0.0196078, 0.0117647, 0)

@@ -2,6 +2,8 @@ extends Control
 
 const ModuleList = preload("res://data/ModuleList.gd")
 
+static var texture_cache: Dictionary = {}
+
 @onready var title_label: Label = $Title
 @onready var hint_label: Label = $Hint
 @onready var ship_image: TextureRect = $CenterContainer/ShipHolder/ShipImage
@@ -15,7 +17,7 @@ var selected_cargo_index: int = -1
 var status_message: String = ""
 
 func _is_battle_context() -> bool:
-	var scene := get_tree().current_scene
+	var scene: Node = get_tree().current_scene
 	if scene == null:
 		return false
 	return scene.name == "BattleScene"
@@ -108,13 +110,21 @@ func _refresh_ship_image(preview_data: Dictionary) -> void:
 	var art_path: String = String(preview_data.get("art_path", ""))
 
 	if art_path != "" and ResourceLoader.exists(art_path):
-		ship_image.texture = load(art_path)
+		ship_image.texture = _load_texture(art_path)
 
 	# Make the ship feel larger inside the overlay.
 	ship_image.offset_left = 90.0
 	ship_image.offset_top = 35.0
 	ship_image.offset_right = -70.0
 	ship_image.offset_bottom = -55.0
+
+func _load_texture(path: String) -> Texture2D:
+	var texture: Resource = texture_cache.get(path)
+	if texture == null:
+		texture = load(path)
+		if texture is Texture2D:
+			texture_cache[path] = texture
+	return texture as Texture2D
 
 func _refresh_slots(preview_data: Dictionary) -> void:
 	var ship_slots: Array = preview_data.get("slots", [])

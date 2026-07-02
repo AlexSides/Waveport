@@ -408,7 +408,7 @@ func rebuild_cannon_queue_from_slots() -> void:
 	refresh_cannon_slot_damage_previews(_get_current_preview_enemy(), loaded_slots)
 	_refresh_queue_ui()
 
-func refresh_cannon_slot_damage_previews(enemy: Variant = null, loaded_slots_override: Array[Control] = []) -> void:
+func refresh_cannon_slot_damage_previews(enemy: Variant = null, loaded_slots_override: Array[Control] = [], preview_steps_override: Array = []) -> void:
 	var loaded_slots: Array[Control] = loaded_slots_override
 	if loaded_slots.is_empty():
 		loaded_slots = _get_loaded_cannon_slots()
@@ -420,7 +420,9 @@ func refresh_cannon_slot_damage_previews(enemy: Variant = null, loaded_slots_ove
 	if loaded_slots.is_empty():
 		return
 
-	var preview_steps: Array = CombatMath.simulate_queue(self, action_queue, enemy).get("steps", [])
+	var preview_steps: Array = preview_steps_override
+	if preview_steps.is_empty():
+		preview_steps = CombatMath.simulate_queue(self, action_queue, enemy).get("steps", [])
 	var preview_count: int = mini(loaded_slots.size(), preview_steps.size())
 	for index in range(preview_count):
 		var slot: Control = loaded_slots[index]
@@ -464,7 +466,7 @@ func get_queued_cannons() -> int:
 	return total
 
 func get_empty_cannons() -> int:
-	return maxi(PlayerData.get_installed_cannon_count() - get_queued_cannons(), 0)
+	return maxi(_get_active_cannon_slot_count() - get_queued_cannons(), 0)
 
 func get_combat_value(key: String, enemy = null) -> int:
 	return CombatMath.get_combat_value(self, key, enemy)
@@ -607,6 +609,15 @@ func _get_loaded_cannon_slots() -> Array[Control]:
 		loaded_slots.append(slot)
 
 	return loaded_slots
+
+func _get_active_cannon_slot_count() -> int:
+	var total: int = 0
+	for slot in cannon_load_slots:
+		if slot == null or not is_instance_valid(slot):
+			continue
+		if slot.visible:
+			total += 1
+	return total
 
 func _get_current_preview_enemy() -> Variant:
 	var scene: Variant = get_tree().current_scene

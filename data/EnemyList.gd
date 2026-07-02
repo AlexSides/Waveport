@@ -396,6 +396,7 @@ const ENEMY_DATA := {
 		"max_health": 12,
 		"spawn_scene": "res://enemies/PirateShip.tscn",
 		"ui_color": Color(0.55, 0.42, 0.28, 1),
+		"texture_path": "res://assets/enemies/pirate_skiff.png",
 		"pattern": [
 			{
 				"key": "quick_shot",
@@ -427,6 +428,7 @@ const ENEMY_DATA := {
 		"max_health": 22,
 		"spawn_scene": "res://enemies/PirateShip.tscn",
 		"ui_color": Color(0.48, 0.35, 0.24, 1),
+		"texture_path": "res://assets/enemies/pirate_raider_cutter.png",
 		"weighted_actions": [
 			{
 				"key": "cannon_fire",
@@ -481,6 +483,7 @@ const ENEMY_DATA := {
 		"max_health": 34,
 		"spawn_scene": "res://enemies/PirateShip.tscn",
 		"ui_color": Color(0.36, 0.28, 0.22, 1),
+		"texture_path": "res://assets/enemies/pirate_frigate.png",
 		"pattern": [
 			{
 				"key": "load_broadside",
@@ -516,6 +519,7 @@ const ENEMY_DATA := {
 		"max_health": 18,
 		"spawn_scene": "res://enemies/PirateShip.tscn",
 		"ui_color": Color(0.31, 0.38, 0.32, 1),
+		"texture_path": "res://assets/enemies/pirate_smuggler.png",
 		"weighted_actions": [
 			{
 				"key": "pocket_goods",
@@ -571,6 +575,7 @@ const ENEMY_DATA := {
 		"max_health": 16,
 		"spawn_scene": "res://enemies/PirateShip.tscn",
 		"ui_color": Color(0.44, 0.31, 0.24, 1),
+		"texture_path": "res://assets/enemies/pirate_twin_corsair.png",
 		"weighted_actions": [
 			{
 				"key": "crossfire",
@@ -613,6 +618,7 @@ const ENEMY_DATA := {
 		"max_health": 16,
 		"spawn_scene": "res://enemies/PirateShip.tscn",
 		"ui_color": Color(0.44, 0.31, 0.24, 1),
+		"texture_path": "res://assets/enemies/pirate_twin_corsair.png",
 		"weighted_actions": [
 			{
 				"key": "crossfire",
@@ -654,6 +660,7 @@ const ENEMY_DATA := {
 		"max_health": 16,
 		"spawn_scene": "res://enemies/PirateShip.tscn",
 		"ui_color": Color(0.54, 0.25, 0.18, 1),
+		"texture_path": "res://assets/enemies/pirate_powder_skiff.png",
 		"initial_flags": {
 			"fuse_lit": false,
 			"fuse_turns": 0
@@ -723,6 +730,7 @@ const ENEMY_DATA := {
 		"max_health": 28,
 		"spawn_scene": "res://enemies/PirateShip.tscn",
 		"ui_color": Color(0.40, 0.32, 0.24, 1),
+		"texture_path": "res://assets/enemies/pirate_boarding_tender.png",
 		"weighted_actions": [
 			{
 				"key": "launch_rowboat",
@@ -773,6 +781,7 @@ const ENEMY_DATA := {
 		"max_health": 6,
 		"spawn_scene": "res://enemies/PirateShip.tscn",
 		"ui_color": Color(0.46, 0.36, 0.23, 1),
+		"texture_path": "res://assets/enemies/pirate_rowboat.png",
 		"initial_flags": {
 			"passive_end_turn_damage": 2
 		},
@@ -797,6 +806,7 @@ const ENEMY_DATA := {
 		"max_health": 45,
 		"spawn_scene": "res://enemies/PirateShip.tscn",
 		"ui_color": Color(0.24, 0.22, 0.26, 1),
+		"texture_path": "res://assets/enemies/pirate_dread_corsair.png",
 		"initial_flags": {
 			"loaded_cannons": 0
 		},

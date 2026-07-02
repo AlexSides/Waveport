@@ -19,6 +19,7 @@ var current_page: int = 0
 
 func _ready() -> void:
 	sandbox_entries = EnemyList.get_sandbox_entries()
+	current_page = RunData.sandbox_enemy_page
 	_create_enemy_buttons()
 	_connect_menu_signals()
 	_render_page()
@@ -29,7 +30,7 @@ func _create_enemy_buttons() -> void:
 
 	enemy_buttons.clear()
 	for index in range(PAGE_SIZE):
-		var button := Button.new()
+		var button: Button = Button.new()
 		button.custom_minimum_size = Vector2(560.0, 56.0)
 		button.add_theme_font_size_override("font_size", 32)
 		button.pressed.connect(_on_enemy_button_pressed.bind(index))
@@ -87,7 +88,7 @@ func _on_enemy_button_pressed(button_index: int) -> void:
 			"center": String(entry.get("id", ""))
 		}
 
-	_start_sandbox_fight(_build_encounter(String(entry.get("name", "Sandbox Enemy")), enemies))
+	_start_sandbox_fight(_build_encounter(String(entry.get("name", "Sandbox Enemy")), enemies), entry_index)
 
 func _on_previous_pressed() -> void:
 	current_page -= 1
@@ -101,10 +102,10 @@ func _on_back_pressed() -> void:
 	RunData.clear_sandbox()
 	get_tree().change_scene_to_file(MAIN_MENU_SCENE)
 
-func _start_sandbox_fight(encounter: Dictionary) -> void:
+func _start_sandbox_fight(encounter: Dictionary, entry_index: int) -> void:
 	RunData.selected_captain = DEFAULT_SANDBOX_CAPTAIN_ID
 	PlayerData.apply_captain_starting_deck(DEFAULT_SANDBOX_CAPTAIN_ID)
-	RunData.start_sandbox_encounter(encounter)
+	RunData.start_sandbox_encounter(encounter, entry_index, current_page)
 	get_tree().change_scene_to_file(BATTLE_SCENE)
 
 func _build_encounter(wave_name: String, enemies: Dictionary) -> Dictionary:

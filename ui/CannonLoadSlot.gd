@@ -7,6 +7,7 @@ const LOADED_COLOR: Color = Color(0.48, 0.24, 0.09, 0.92)
 const LOADED_HOVER_COLOR: Color = Color(0.72, 0.36, 0.12, 0.96)
 const DAMAGE_LABEL_SIZE: Vector2 = Vector2(180.0, 46.0)
 const DAMAGE_LABEL_OFFSET: Vector2 = Vector2(-36.0, -56.0)
+const DRAG_START_DISTANCE: float = 8.0
 
 var slot_index: int = 0
 var is_active: bool = false
@@ -14,6 +15,8 @@ var is_placement_preview_visible: bool = false
 var loaded_card_data: Dictionary = {}
 var damage_preview: int = 0
 var is_highlighted: bool = false
+var drag_press_active: bool = false
+var drag_press_position: Vector2 = Vector2.ZERO
 
 var background_rect: ColorRect = null
 var slot_label: Label = null
@@ -31,6 +34,9 @@ func _ready() -> void:
 func setup(index: int, center_position: Vector2) -> void:
 	slot_index = index
 	name = "CannonLoadSlot%d" % (slot_index + 1)
+	set_center_position(center_position)
+
+func set_center_position(center_position: Vector2) -> void:
 	position = center_position - SLOT_SIZE * 0.5
 	size = SLOT_SIZE
 	pivot_offset = SLOT_SIZE * 0.5
@@ -94,13 +100,51 @@ func set_damage_preview(damage: int) -> void:
 
 func _gui_input(event: InputEvent) -> void:
 	if not is_active or not is_loaded():
+		drag_press_active = false
 		return
 
 	if event is InputEventMouseButton:
 		var mouse_event: InputEventMouseButton = event as InputEventMouseButton
 		if mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed:
-			TurnManager.begin_drag_loaded_cannon_card(self)
+			drag_press_active = true
+			drag_press_position = get_global_mouse_position()
 			accept_event()
+		elif mouse_event.button_index == MOUSE_BUTTON_LEFT and not mouse_event.pressed:
+			drag_press_active = false
+			accept_event()
+		return
+
+	if event is InputEventMouseMotion and _try_begin_loaded_card_drag():
+		accept_event()
+
+func _input(event: InputEvent) -> void:
+	if not drag_press_active:
+		return
+
+	if event is InputEventMouseButton:
+		var mouse_event: InputEventMouseButton = event as InputEventMouseButton
+		if mouse_event.button_index == MOUSE_BUTTON_LEFT and not mouse_event.pressed:
+			drag_press_active = false
+		return
+
+	if event is InputEventMouseMotion:
+		_try_begin_loaded_card_drag()
+
+func _try_begin_loaded_card_drag() -> bool:
+	if not drag_press_active:
+		return false
+
+	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		drag_press_active = false
+		return false
+
+	var drag_distance: float = get_global_mouse_position().distance_to(drag_press_position)
+	if drag_distance < DRAG_START_DISTANCE:
+		return false
+
+	drag_press_active = false
+	TurnManager.begin_drag_loaded_cannon_card(self)
+	return true
 
 func _build_children() -> void:
 	if background_rect == null:
