@@ -15,6 +15,10 @@ This repository is a portfolio snapshot focused on systems design, readable game
 
 ## Screenshots
 
+Voyage map intermission showing parchment presentation, unknown route markers, and ship course plotting.
+
+![Waveport voyage map screen](media/screenshots/voyage-map.png)
+
 Combat prototype with card hand management, cannon loading, queued attack previews, and enemy intent display.
 
 ![Waveport combat overview](media/screenshots/combat-overview.png)
