@@ -1,41 +1,48 @@
 # Waveport
 
-Waveport is a Godot 4 prototype that mixes deckbuilding, ship modules, and turn-based pirate combat. The core loop is built around loading cannon cards into a firing queue, timing instant cards around enemy intents, and tuning your ship between encounters with module swaps and cargo rewards.
+Waveport is a Godot 4 deckbuilding tactics prototype about sailing a modular ship through escalating sea and pirate encounters. The project combines card-driven combat, cannon queue planning, enemy intent readability, ship loadout management, and a stylized voyage map that frames run progression as charting a course across unknown waters.
 
-## Project Status
+This repository is a portfolio snapshot focused on systems design, readable gameplay architecture, and UI iteration. It is not a finished commercial release.
 
-Waveport is a prototype and portfolio snapshot, not a finished commercial release.
+## Project Highlights
 
-- One playable captain is enabled today; the additional captain slots are placeholders.
-- One starter ship is implemented, with module slots, cargo, and a ship preview/loadout overlay.
-- The main run currently covers a short four-encounter sequence, plus drills/tutorial battles and a sandbox encounter selector.
-- Systems work is further along than content, balance, UX polish, audio, and final presentation.
-- The build still contains test-friendly scaffolding, including drills, sandbox fights, and debug-oriented starter cargo.
+- **Pirate-map voyage flow:** The intermission screen presents the run as a parchment treasure map with unknown destination markers, dotted ink routes, ship movement, and randomized route animations including wavy, zigzag, loopy, and staircase paths.
+- **Eight-battle run structure:** Runs progress through sea encounters, a sea boss, pirate encounters, and a pirate boss while preserving a clear battle-to-battle flow.
+- **Cannon queue combat:** Cannon cards load into a two-cannon firing queue, letting players plan attack order, previews, unloads, and turn timing around enemy intents.
+- **Modular ship management:** The ship preview/loadout overlay supports installed modules, cargo modules, slot types, and between-battle inspection.
+- **Data-driven enemies:** Enemy behavior is defined through reusable data tables for fixed patterns, weighted actions, conditional behavior, formation shifts, and pirate-specific encounters.
+- **Testing tools:** Guided drills and a sandbox enemy selector make it easy to test combat rules, enemy behavior, and edge cases quickly.
 
 ## Screenshots
 
-Combat prototype with multi-enemy encounters, card hand management, queued attacks, and enemy intent previews.
+Combat prototype with card hand management, cannon loading, queued attack previews, and enemy intent display.
 
 ![Waveport combat overview](media/screenshots/combat-overview.png)
 
-Ship preview/loadout screen used to inspect slot types, installed modules, and cargo capacity.
+Ship preview/loadout screen used to inspect active slots, installed modules, and cargo capacity.
 
 ![Waveport ship loadout preview](media/screenshots/ship-loadout-preview.png)
 
 ## Technical Highlights
 
-### Card Queue System
+### Voyage And Run Flow
+
+- `data/EnemyRunConfig.gd` builds the current eight-battle run order and annotates encounters with route progress metadata.
+- `scenes/IntermissionScreen.gd` owns the pirate-map presentation, route selection, ship animation, selected-marker ink effects, and fade into battle.
+- The map remains presentation-only for now: both unknown markers lead into the existing next-battle progression without adding branching, shops, treasure, or new event systems.
+
+### Card Queue Combat
 
 - Cards are defined in `data/CardList.gd` and instantiated through `globals/DeckManager.gd`.
-- Queueable cards are converted into lightweight queue data and stored in `globals/TurnManager.gd`.
-- `globals/CombatMath.gd` previews queue outcomes before firing, including order-sensitive bonuses, next-shot multipliers, repeated shots, and cannon/module bonuses.
-- After firing, `DeckManager` resolves discard/redraw flow and keeps the hand, deck, and discard UI in sync.
+- Queueable cannon cards are converted into lightweight queue data and managed by `globals/TurnManager.gd`.
+- `globals/CombatMath.gd` previews queue outcomes before firing, including order-sensitive bonuses, next-shot multipliers, repeated shots, and module-based cannon bonuses.
+- The current combat UI limits active cannon loading to two cannon slots, keeping the queue readable and deliberate.
 
 ### Enemy Intent System
 
 - Enemy behavior is data-driven through `data/EnemyList.gd` instead of being hardcoded per encounter scene.
 - Enemies can use fixed patterns, weighted action tables, slot-specific side behaviors, conditional actions, and scripted follow-ups through `globals/EnemyActions.gd`.
-- Intent text is generated from the selected action and surfaced in battle so the player can plan around attacks, defense turns, buffs, and formation shifts.
+- Intent text is generated from the selected action and surfaced in battle so the player can plan around attacks, defense turns, buffs, summons, and formation shifts.
 
 ### Modules And Ship Loadout
 
@@ -43,12 +50,18 @@ Ship preview/loadout screen used to inspect slot types, installed modules, and c
 - `globals/PlayerData.gd` recalculates command bonuses, hull bonuses, hand size, queue size, and module-granted cards from the installed loadout.
 - `scenes/ShipPreview.gd` provides an inspect/manage overlay for swapping modules between active slots and cargo outside combat.
 
-### Turn Flow
+### Battle Presentation
 
 - `scenes/BattleScene.gd` orchestrates the combat loop: start turn, queue or unload cards, fire the queue, resolve enemy actions, rotate formations, then begin the next turn.
-- `globals/TurnManager.gd` owns commands, queued actions, and temporary turn modifiers.
-- `globals/TurnEffects.gd` handles instant-card side effects such as bleed, burn, draw, healing, delayed block, and repeat-fire effects.
-- The run layer already includes intermission/plunder flow, guided drills, and a sandbox arena for focused encounter testing.
+- Battle entry now supports a cleaner fade sequence so the map fades out, battle fades in, and enemies appear after the battle screen has loaded.
+- `ui/CannonLoadSlots.gd` and `ui/CannonLoadSlot.gd` handle cannon placement visuals, loaded-card drag behavior, and damage previews.
+
+## What This Demonstrates
+
+- Building gameplay systems with clear ownership boundaries across data, global managers, scenes, and reusable UI.
+- Iterating on game feel through small, testable presentation passes instead of rewriting core progression.
+- Keeping prototype tools available through drills and sandbox fights while preserving the main run flow.
+- Translating player-facing feedback into scoped engineering changes: route timing, motion readability, enemy fade sequencing, and combat UI clarity.
 
 ## Getting Started
 
@@ -74,12 +87,13 @@ The project currently starts at `scenes/MainMenu.tscn`.
 
 ## Controls
 
-- Mouse: play cards, queue attacks, and navigate menus
-- Fire button: resolve the queued attacks
+- Mouse: play cards, queue attacks, inspect ship slots, and navigate menus
+- Fire button: resolve the queued cannon attacks
 - Unload button: empty the current queue and refund commands
-- `Tab`: open or close the ship preview overlay during battle
+- `Tab`: open or close the ship preview overlay during battle or voyage intermission
 - `Esc`: close the ship preview; in sandbox mode it returns to the sandbox menu
 - `R`: restart the current sandbox encounter
+- `+` / `-`: cycle sandbox enemies while testing
 
 ## Repository Layout
 
@@ -94,7 +108,3 @@ The project currently starts at `scenes/MainMenu.tscn`.
 - `ui/` reusable combat UI scenes
 - `media/` GitHub-facing screenshots and capture assets
 - `docs/` repo audit notes for the public release pass
-
-## Media
-
-Additional GitHub screenshots or short GIFs can go in `media/screenshots/`. Runtime game assets should stay in `assets/`.
